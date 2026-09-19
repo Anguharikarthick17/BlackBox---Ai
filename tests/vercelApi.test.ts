@@ -209,6 +209,54 @@ async function runVercelApiSuite() {
     'Chat response contains grounded analysis'
   );
 
+  // Test 9: Direct Vercel Entrypoint Execution — api/ai/chat.ts
+  console.log('\n--- Test 9: Direct Vercel Entrypoint: api/ai/chat.ts ---');
+  const { default: aiChatHandler } = await import('../api/ai/chat');
+  const directChatHttp = createMockHttp({
+    method: 'POST',
+    url: '/api/ai/chat',
+    body: {
+      messages: [{ role: 'user', content: 'Compare BTC vs buy and hold' }],
+      offlineDemo: true,
+      currentContext: { asset: 'BTC', strategy: 'EMA_TREND' },
+    },
+  });
+  await aiChatHandler(directChatHttp.req, directChatHttp.res);
+  const directChatRes = directChatHttp.getResponse();
+  assert(directChatRes.statusCode === 200, 'api/ai/chat.ts directly returns 200 OK (NOT 404)');
+  assert(directChatRes.body.message !== undefined, 'api/ai/chat.ts yields valid message structure');
+
+  // Test 10: Direct Vercel Entrypoint: api/ai/tool.ts
+  console.log('\n--- Test 10: Direct Vercel Entrypoint: api/ai/tool.ts ---');
+  const { default: aiToolHandler } = await import('../api/ai/tool');
+  const directToolHttp = createMockHttp({
+    method: 'POST',
+    url: '/api/ai/tool',
+    body: { tool: 'get_asset_metrics', args: { asset: 'BTC' } },
+  });
+  await aiToolHandler(directToolHttp.req, directToolHttp.res);
+  const directToolRes = directToolHttp.getResponse();
+  assert(directToolRes.statusCode === 200, 'api/ai/tool.ts directly returns 200 OK (NOT 404)');
+  assert(directToolRes.body.success === true, 'api/ai/tool.ts executes quantitative tool');
+
+  // Test 11: Direct Vercel Entrypoint: api/health.ts & api/env-check.ts
+  console.log('\n--- Test 11: Direct Vercel Entrypoints: api/health.ts & env-check.ts ---');
+  const { default: healthHandler } = await import('../api/health');
+  const directHealthHttp = createMockHttp({ method: 'GET', url: '/api/health' });
+  await healthHandler(directHealthHttp.req, directHealthHttp.res);
+  const directHealthRes = directHealthHttp.getResponse();
+  assert(directHealthRes.statusCode === 200, 'api/health.ts directly returns 200 OK (NOT 404)');
+  assert(directHealthRes.body.status === 'HEALTHY', 'api/health.ts status is HEALTHY');
+
+  // Test 12: Direct Vercel Entrypoint: api/research/cases.ts
+  console.log('\n--- Test 12: Direct Vercel Entrypoint: api/research/cases.ts ---');
+  const { default: researchCasesHandler } = await import('../api/research/cases');
+  const directCasesHttp = createMockHttp({ method: 'GET', url: '/api/research/cases?limit=1' });
+  await researchCasesHandler(directCasesHttp.req, directCasesHttp.res);
+  const directCasesRes = directCasesHttp.getResponse();
+  assert(directCasesRes.statusCode === 200, 'api/research/cases.ts directly returns 200 OK (NOT 404)');
+  assert(Array.isArray(directCasesRes.body.cases), 'api/research/cases.ts returns cases array');
+
   console.log('\n========================================================');
   console.log(`RESULTS: ${passedTests}/${totalTests} Tests Passed (100%)`);
   console.log('========================================================\n');

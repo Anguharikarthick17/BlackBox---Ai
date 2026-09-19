@@ -92,7 +92,20 @@ export async function parseRequestBody(req: any): Promise<any> {
   return {};
 }
 
-function sendResponse(res: any, statusCode: number, data: any): void {
+export function handleCors(req: any, res: any): boolean {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method?.toUpperCase() === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return true;
+  }
+  return false;
+}
+
+export function sendResponse(res: any, statusCode: number, data: any): void {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -107,22 +120,34 @@ function sendResponse(res: any, statusCode: number, data: any): void {
   }
 }
 
+export function getHealthPayload(): any {
+  return {
+    status: 'HEALTHY',
+    service: 'BLACKBOX X Institutional Quant Server API',
+    timestamp: new Date().toISOString(),
+    environment: {
+      featherless: Boolean(process.env.FEATHERLESS_API_KEY?.trim()) ? 'CONFIGURED' : 'NOT CONFIGURED',
+      gemini: Boolean(process.env.GEMINI_API_KEY?.trim()) ? 'CONFIGURED' : 'NOT CONFIGURED',
+      tavily: Boolean(process.env.TAVILY_API_KEY?.trim()) ? 'CONFIGURED' : 'NOT CONFIGURED',
+      supabase: Boolean(process.env.VITE_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) ? 'CONFIGURED' : 'NOT CONFIGURED',
+    },
+    security: {
+      keysExposed: false,
+      serverSideOnly: true,
+    },
+  };
+}
+
 /**
  * Main API Request Dispatcher
  */
 export async function dispatchApiRequest(req: any, res: any): Promise<void> {
-  const method = req.method?.toUpperCase() || 'GET';
-
   // Handle CORS preflight
-  if (method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.statusCode = 204;
-    res.end();
+  if (handleCors(req, res)) {
     return;
   }
 
+  const method = req.method?.toUpperCase() || 'GET';
   const url = normalizeApiPath(req);
   const queryString = extractQueryString(req);
 
@@ -130,21 +155,7 @@ export async function dispatchApiRequest(req: any, res: any): Promise<void> {
   // GET-capable endpoints
   // --------------------------------------------------------
   if (url === '/api' || url === '/api/' || url === '/api/env-check' || url === '/api/health') {
-    sendResponse(res, 200, {
-      status: 'HEALTHY',
-      service: 'BLACKBOX X Institutional Quant Server API',
-      timestamp: new Date().toISOString(),
-      environment: {
-        featherless: Boolean(process.env.FEATHERLESS_API_KEY?.trim()) ? 'CONFIGURED' : 'NOT CONFIGURED',
-        gemini: Boolean(process.env.GEMINI_API_KEY?.trim()) ? 'CONFIGURED' : 'NOT CONFIGURED',
-        tavily: Boolean(process.env.TAVILY_API_KEY?.trim()) ? 'CONFIGURED' : 'NOT CONFIGURED',
-        supabase: Boolean(process.env.VITE_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) ? 'CONFIGURED' : 'NOT CONFIGURED',
-      },
-      security: {
-        keysExposed: false,
-        serverSideOnly: true,
-      },
-    });
+    sendResponse(res, 200, getHealthPayload());
     return;
   }
 
