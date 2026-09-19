@@ -9,6 +9,8 @@
 import { handleAssistantChatRequest } from '../../server/api/ai/chat';
 import { handleCors, parseRequestBody, sendResponse } from '../../server/apiRouter';
 
+export const maxDuration = 60;
+
 export default async function handler(req: any, res: any) {
   if (handleCors(req, res)) return;
 

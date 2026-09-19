@@ -335,8 +335,12 @@ async function runVercelApiSuite() {
   console.log(`Detected Vercel Serverless Function files (${apiFiles.length}):`);
   apiFiles.forEach((f) => console.log(`  - ${path.relative(process.cwd(), f)}`));
   assert(apiFiles.length <= 12, `Vercel function count (${apiFiles.length}) is <= 12 Hobby limit`);
-  assert(apiFiles.length <= 11, `Vercel function count (${apiFiles.length}) is <= 11 target`);
+  assert(apiFiles.length === 11, `Vercel function count (${apiFiles.length}) is exactly 11`);
   assert(!apiFiles.some(f => f.includes('[...path]')), 'api/[...path].ts is successfully removed');
+  assert(!apiFiles.some(f => f.endsWith('/api/index.ts') || f.endsWith('\\api\\index.ts')), 'api/index.ts is successfully removed');
+
+  const { maxDuration } = await import('../api/ai/chat');
+  assert(maxDuration === 60, `api/ai/chat.ts exports maxDuration === 60 (got ${maxDuration})`);
 
   console.log('\n========================================================');
   console.log(`RESULTS: ${passedTests}/${totalTests} Tests Passed (100%)`);

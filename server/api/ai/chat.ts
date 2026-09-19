@@ -102,14 +102,13 @@ export async function handleAssistantChatRequest(
   const userQuery = rawMessages.length > 0 ? (rawMessages[rawMessages.length - 1]?.content || '') : '';
 
   // 1. Route query intent with strict context isolation
+  const startTime = Date.now();
   const routing = routeAssistantRequest(userQuery, {
     asset: currentContext?.asset,
     strategy: currentContext?.strategy,
   });
 
-  if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
-    console.log(`\n[BLACKBOX CHAT REQUEST]\nmode: ${routing.mode}\n\n[AI ROUTER]\nprovider: Featherless\nallowedTools: ${routing.mode === 'GENERAL' ? 'NONE' : routing.recommendedTools.join(', ')}`);
-  }
+  console.log(`[AI_CHAT_START] mode: ${routing.mode} model: ${getActiveFeatherlessModel()}`);
 
   const toolActivity: ToolActivityItem[] = [];
   const citations: EvidenceCitation[] = [];
@@ -218,6 +217,7 @@ export async function handleAssistantChatRequest(
       responseText = `### BLACKBOX FINDING & QUANTITATIVE EVIDENCE\n\nAccording to BLACKBOX X for **${asset}** utilizing **${strategy}** across the historical data window:\n\n- **Strategy Performance:** Evaluated next-bar close execution with $0.10\\%$ transaction friction.\n- **Risk Profile:** Capital preservation was dictated by trade frequency and regime transitions.\n- **Data Window:** Calibrated across the verified historical pricing window.`;
     }
 
+    console.log(`[AI_CHAT_COMPLETE] ${Date.now() - startTime}ms (offline)`);
     return {
       configured: featherless.isConfigured(),
       model: 'deterministic-offline-grounding',
@@ -271,10 +271,15 @@ export async function handleAssistantChatRequest(
     const tools = getToolsForMode(routing.mode);
 
     // Call Featherless with mode-permitted tools
+    const providerStartTime = Date.now();
     const initialResponse = await featherless.chat(formattedMessages, tools);
+    const providerDuration = Date.now() - providerStartTime;
+    console.log(`[AI_PROVIDER_RESPONSE] ${providerDuration}ms`);
 
     // If Featherless didn't request tools (or mode has no tools), return direct answer
     if (!initialResponse.toolCalls || initialResponse.toolCalls.length === 0 || routing.mode === 'GENERAL') {
+      const totalDuration = Date.now() - startTime;
+      console.log(`[AI_CHAT_COMPLETE] ${totalDuration}ms`);
       return {
         configured: true,
         model: initialResponse.model || getActiveFeatherlessModel(),
@@ -291,16 +296,19 @@ export async function handleAssistantChatRequest(
       };
     }
 
+    const toolCallsToExecute = initialResponse.toolCalls.slice(0, MODEL_CONFIG.maxToolCallsPerTurn);
+    console.log(`[AI_TOOL_CALLS] count: ${toolCallsToExecute.length}`);
+
     // Process tool calls (up to MAX_TOOL_CALLS) with strict server-side boundary enforcement
     const toolCallTurnMessages: ChatMessage[] = [
       {
         role: 'assistant',
         content: initialResponse.content || '',
-        tool_calls: initialResponse.toolCalls,
+        tool_calls: toolCallsToExecute,
       },
     ];
 
-    for (const tc of initialResponse.toolCalls.slice(0, MODEL_CONFIG.maxToolCallsPerTurn)) {
+    for (const tc of toolCallsToExecute) {
       const toolName = tc.function.name;
 
       // Double-walled security guard
@@ -403,10 +411,15 @@ export async function handleAssistantChatRequest(
     }
 
     // Feed tool outputs back to Featherless for final grounded response (reuse already resolved model)
+    const finalProviderStartTime = Date.now();
     const finalMessages = [...formattedMessages, ...toolCallTurnMessages];
     const finalResponse = await featherless.chat(finalMessages, undefined, {
       model: initialResponse.model || getActiveFeatherlessModel(),
     });
+    console.log(`[AI_PROVIDER_RESPONSE] ${Date.now() - finalProviderStartTime}ms (synthesis)`);
+
+    const totalDuration = Date.now() - startTime;
+    console.log(`[AI_CHAT_COMPLETE] ${totalDuration}ms`);
 
     return {
       configured: true,
@@ -428,6 +441,9 @@ export async function handleAssistantChatRequest(
     const sanitizedError = rawError
       .replace(/rc_[a-f0-9]{32,}/gi, '[REDACTED]')
       .replace(/Bearer\s+[^\s]+/gi, 'Bearer [REDACTED]');
+
+    const totalDuration = Date.now() - startTime;
+    console.log(`[AI_CHAT_COMPLETE] ${totalDuration}ms (error-notice)`);
 
     return {
       configured: true,

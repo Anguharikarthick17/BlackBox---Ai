@@ -7,7 +7,7 @@ export const MODEL_CONFIG = {
   fallbackModel: 'Qwen/Qwen2.5-7B-Instruct',
   featherlessBaseUrl: 'https://api.featherless.ai/v1',
   maxOutputTokens: 2048,
-  maxToolCallsPerTurn: 6,
+  maxToolCallsPerTurn: 2,
   maxContextMessages: 10,
   temperature: 0.15, // Low temperature for factual precision and grounded citations
   requestTimeoutMs: 15000,
