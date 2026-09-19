@@ -20,11 +20,25 @@ export default async function handler(req: any, res: any) {
     const body = await parseRequestBody(req);
     const result = await handleAssistantChatRequest(body);
     return sendResponse(res, 200, result);
-  } catch (err) {
-    return sendResponse(res, 500, {
+  } catch (err: any) {
+    const rawError = String(err?.message || 'Assistant chat temporarily unavailable');
+    const sanitized = rawError
+      .replace(/rc_[a-f0-9]{32,}/gi, '[REDACTED]')
+      .replace(/Bearer\s+[^\s]+/gi, 'Bearer [REDACTED]');
+
+    return sendResponse(res, 200, {
       configured: false,
-      status: 'ERROR',
-      error: (err as Error).message || 'Assistant chat failed',
+      model: 'safe-fallback',
+      mode: 'GENERAL',
+      error: sanitized,
+      message: {
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content: `**BLACKBOX AI Service Notice**\n\n${sanitized}\n\n*All deterministic quantitative engines remain fully operational.*`,
+        timestamp: new Date(),
+        mode: 'GENERAL',
+        toolActivity: [],
+      },
     });
   }
 }

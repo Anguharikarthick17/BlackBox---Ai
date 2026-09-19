@@ -67,7 +67,17 @@ export async function parseRequestBody(req: any): Promise<any> {
         return {};
       }
     }
-    return req.body;
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(req.body)) {
+      try {
+        return JSON.parse(req.body.toString('utf8'));
+      } catch {
+        return {};
+      }
+    }
+    if (typeof req.body === 'object') {
+      return req.body;
+    }
+    return {};
   }
 
   if (typeof req.on === 'function') {

@@ -104,13 +104,20 @@ export class FeatherlessProvider implements AIProvider {
 
       if (!response.ok) {
         const errorText = await response.text();
-        if (response.status === 403 && errorText.includes('model_gated_needs_oauth') && model !== MODEL_CONFIG.fallbackModel) {
-          console.log(`[FALLBACK]\nmodel: ${MODEL_CONFIG.fallbackModel}`);
+        const isGated = response.status === 403 && errorText.includes('model_gated_needs_oauth');
+        const isNotFound = response.status === 404 && errorText.includes('model_not_found');
+
+        if ((isGated || isNotFound) && model !== MODEL_CONFIG.fallbackModel) {
+          console.log(`[FEATHERLESS FALLBACK] Model "${model}" returned HTTP ${response.status}. Retrying with verified fallback "${MODEL_CONFIG.fallbackModel}".`);
           const fallbackRes = await this.chat(messages, tools, { ...options, model: MODEL_CONFIG.fallbackModel });
-          console.log(`[FALLBACK RESPONSE]\nstatus: 200`);
           return fallbackRes;
         }
-        throw new Error(`Featherless API responded with HTTP ${response.status}: ${errorText}`);
+
+        const sanitizedErrorText = errorText
+          .replace(/rc_[a-f0-9]{32,}/gi, '[REDACTED]')
+          .replace(/Bearer\s+[^\s]+/gi, 'Bearer [REDACTED]');
+
+        throw new Error(`Featherless API responded with HTTP ${response.status}: ${sanitizedErrorText}`);
       }
 
       const data = await response.json();

@@ -37,16 +37,18 @@ export interface ResearchApiResponse {
 }
 
 function ensureEnvLoaded(): void {
-  try {
-    const envPath = path.resolve(process.cwd(), '.env');
-    if (fs.existsSync(envPath)) {
-      const content = fs.readFileSync(envPath, 'utf8');
-      const matchKey = content.match(/^FEATHERLESS_API_KEY=(.+)$/m);
-      if (matchKey && matchKey[1].trim()) {
-        process.env.FEATHERLESS_API_KEY = matchKey[1].trim();
+  if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    try {
+      const envPath = path.resolve(process.cwd(), '.env');
+      if (fs.existsSync(envPath)) {
+        const content = fs.readFileSync(envPath, 'utf8');
+        const matchKey = content.match(/^FEATHERLESS_API_KEY=(.+)$/m);
+        if (matchKey && matchKey[1].trim() && !process.env.FEATHERLESS_API_KEY) {
+          process.env.FEATHERLESS_API_KEY = matchKey[1].trim();
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
 }
 
 export async function handleResearchRequest(body: ResearchApiRequestBody): Promise<ResearchApiResponse> {

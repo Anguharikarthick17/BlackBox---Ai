@@ -26,24 +26,26 @@ import { getActiveFeatherlessModel, MODEL_CONFIG } from '../../../src/services/a
 import { SearchResult } from '../../../src/services/web/types';
 
 function ensureEnvLoaded(): { key?: string; model?: string; tavily?: string } {
-  try {
-    const envPath = path.resolve(process.cwd(), '.env');
-    if (fs.existsSync(envPath)) {
-      const content = fs.readFileSync(envPath, 'utf8');
-      const matchKey = content.match(/^FEATHERLESS_API_KEY=(.+)$/m);
-      if (matchKey && matchKey[1].trim()) {
-        process.env.FEATHERLESS_API_KEY = matchKey[1].trim();
+  if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    try {
+      const envPath = path.resolve(process.cwd(), '.env');
+      if (fs.existsSync(envPath)) {
+        const content = fs.readFileSync(envPath, 'utf8');
+        const matchKey = content.match(/^FEATHERLESS_API_KEY=(.+)$/m);
+        if (matchKey && matchKey[1].trim() && !process.env.FEATHERLESS_API_KEY) {
+          process.env.FEATHERLESS_API_KEY = matchKey[1].trim();
+        }
+        const matchModel = content.match(/^FEATHERLESS_MODEL=(.+)$/m);
+        if (matchModel && matchModel[1].trim() && !process.env.FEATHERLESS_MODEL) {
+          process.env.FEATHERLESS_MODEL = matchModel[1].trim();
+        }
+        const matchTavily = content.match(/^TAVILY_API_KEY=(.+)$/m);
+        if (matchTavily && matchTavily[1].trim() && !process.env.TAVILY_API_KEY) {
+          process.env.TAVILY_API_KEY = matchTavily[1].trim();
+        }
       }
-      const matchModel = content.match(/^FEATHERLESS_MODEL=(.+)$/m);
-      if (matchModel && matchModel[1].trim()) {
-        process.env.FEATHERLESS_MODEL = matchModel[1].trim();
-      }
-      const matchTavily = content.match(/^TAVILY_API_KEY=(.+)$/m);
-      if (matchTavily && matchTavily[1].trim()) {
-        process.env.TAVILY_API_KEY = matchTavily[1].trim();
-      }
-    }
-  } catch {}
+    } catch {}
+  }
   return {
     key: process.env.FEATHERLESS_API_KEY,
     model: process.env.FEATHERLESS_MODEL,
@@ -92,8 +94,12 @@ export async function handleAssistantChatRequest(
   body: AssistantChatRequest
 ): Promise<AssistantChatResponse> {
   const envData = ensureEnvLoaded();
-  const { messages, currentContext, offlineDemo } = body;
-  const userQuery = messages[messages.length - 1]?.content || '';
+  const safeBody = (body && typeof body === 'object' ? body : {}) as Partial<AssistantChatRequest>;
+  const rawMessages = Array.isArray(safeBody.messages) ? safeBody.messages : [];
+  const currentContext = safeBody.currentContext;
+  const offlineDemo = Boolean(safeBody.offlineDemo);
+
+  const userQuery = rawMessages.length > 0 ? (rawMessages[rawMessages.length - 1]?.content || '') : '';
 
   // 1. Route query intent with strict context isolation
   const routing = routeAssistantRequest(userQuery, {
@@ -118,11 +124,11 @@ export async function handleAssistantChatRequest(
       configured: false,
       model: getActiveFeatherlessModel(),
       mode: routing.mode,
-      error: 'FEATHERLESS_API_KEY is not configured on the server. Set FEATHERLESS_API_KEY in your .env file, or click "Load Grounded Demo" to test with offline deterministic execution.',
+      error: 'FEATHERLESS_API_KEY is not configured on the server. Set FEATHERLESS_API_KEY in your environment, or click "Load Grounded Demo" to test with offline deterministic execution.',
       message: {
         id: `msg-${Date.now()}`,
         role: 'assistant',
-        content: `**Featherless API Key Required**\n\nTo connect live Featherless LLM inference, configure \`FEATHERLESS_API_KEY\` in your environment or \`.env\` file.\n\nYou can also click **"Load Grounded Demo"** to evaluate the complete tool-execution pipeline, source citation mechanism, and quantitative analysis offline.`,
+        content: `**Featherless API Key Required**\n\nTo connect live Featherless LLM inference, configure \`FEATHERLESS_API_KEY\` in your environment.\n\nYou can also click **"Load Grounded Demo"** to evaluate the complete tool-execution pipeline, source citation mechanism, and quantitative analysis offline.`,
         timestamp: new Date(),
         mode: routing.mode,
         toolActivity: [],
@@ -251,7 +257,7 @@ export async function handleAssistantChatRequest(
 
     const formattedMessages: ChatMessage[] = [
       { role: 'system', content: `${SYSTEM_PROMPT}\n\n${modeSystemDirective}` },
-      ...messages.slice(-MODEL_CONFIG.maxContextMessages).map(m => ({
+      ...rawMessages.slice(-MODEL_CONFIG.maxContextMessages).map((m: any) => ({
         role: m.role as any,
         content: m.content,
       })),
@@ -396,9 +402,11 @@ export async function handleAssistantChatRequest(
       }
     }
 
-    // Feed tool outputs back to Featherless for final grounded response (no tools on final synthesis)
+    // Feed tool outputs back to Featherless for final grounded response (reuse already resolved model)
     const finalMessages = [...formattedMessages, ...toolCallTurnMessages];
-    const finalResponse = await featherless.chat(finalMessages);
+    const finalResponse = await featherless.chat(finalMessages, undefined, {
+      model: initialResponse.model || getActiveFeatherlessModel(),
+    });
 
     return {
       configured: true,
@@ -416,19 +424,24 @@ export async function handleAssistantChatRequest(
       },
     };
   } catch (err: any) {
+    const rawError = String(err?.message || 'AI provider temporarily unavailable');
+    const sanitizedError = rawError
+      .replace(/rc_[a-f0-9]{32,}/gi, '[REDACTED]')
+      .replace(/Bearer\s+[^\s]+/gi, 'Bearer [REDACTED]');
+
     return {
       configured: true,
       model: getActiveFeatherlessModel(),
       mode: routing.mode,
-      error: `Featherless communication error: ${err.message}`,
+      error: `AI Provider Notice: ${sanitizedError}`,
       message: {
         id: `msg-${Date.now()}`,
         role: 'assistant',
-        content: `**BLACKBOX AI temporary communication failure**\n\n${err.message}\n\n*BLACKBOX X quantitative engines remain 100% operational. You can continue inspecting charts and running backtests.*`,
+        content: `**BLACKBOX AI Provider Notice**\n\n${sanitizedError}\n\n*BLACKBOX X quantitative engines remain 100% operational. You can continue inspecting charts and running backtests.*`,
         timestamp: new Date(),
         mode: routing.mode,
         toolActivity: [],
-        error: err.message,
+        error: sanitizedError,
       },
     };
   }
