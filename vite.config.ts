@@ -4,8 +4,14 @@ import type { Plugin } from 'vite'
 
 function apiServerPlugin(): Plugin {
   const handleApiRequest = async (req: any, res: any) => {
-    const url = req.url?.split('?')[0];
+    const rawUrl = req.url || '';
+    const url = rawUrl.split('?')[0];
+    const queryString = rawUrl.includes('?') ? rawUrl.slice(rawUrl.indexOf('?') + 1) : '';
+    const method = req.method?.toUpperCase() || 'GET';
 
+    // --------------------------------------------------------
+    // GET-capable endpoints
+    // --------------------------------------------------------
     if (url === '/api/env-check' || url === '/api/health') {
       res.setHeader('Content-Type', 'application/json');
       res.statusCode = 200;
@@ -16,6 +22,7 @@ function apiServerPlugin(): Plugin {
           featherless: Boolean(process.env.FEATHERLESS_API_KEY && process.env.FEATHERLESS_API_KEY.trim()) ? 'CONFIGURED' : 'NOT CONFIGURED',
           gemini: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()) ? 'CONFIGURED' : 'NOT CONFIGURED',
           tavily: Boolean(process.env.TAVILY_API_KEY && process.env.TAVILY_API_KEY.trim()) ? 'CONFIGURED' : 'NOT CONFIGURED',
+          supabase: Boolean(process.env.VITE_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) ? 'CONFIGURED' : 'NOT CONFIGURED',
         },
         security: {
           keysExposed: false,
@@ -25,7 +32,60 @@ function apiServerPlugin(): Plugin {
       return;
     }
 
-    if (req.method !== 'POST') {
+    // --------------------------------------------------------
+    // RESEARCH PERSISTENCE API — GET routes
+    // /api/research/health
+    // /api/research/cases           (list)
+    // /api/research/cases/:caseId   (single case)
+    // --------------------------------------------------------
+    if (url === '/api/research/health' && method === 'GET') {
+      res.setHeader('Content-Type', 'application/json');
+      try {
+        const { handleResearchHealthRequest } = await import('./server/api/research/cases');
+        const result = await handleResearchHealthRequest();
+        res.statusCode = result.ok ? 200 : 503;
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        res.statusCode = 503;
+        res.end(JSON.stringify({ ok: false, error: (err as Error).message }));
+      }
+      return;
+    }
+
+    if (url === '/api/research/cases' && method === 'GET') {
+      res.setHeader('Content-Type', 'application/json');
+      try {
+        const { handleListResearchCases } = await import('./server/api/research/cases');
+        const params = new URLSearchParams(queryString);
+        const result = await handleListResearchCases(params);
+        res.statusCode = 200;
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        res.statusCode = 500;
+        res.end(JSON.stringify({ error: (err as Error).message }));
+      }
+      return;
+    }
+
+    const caseGetMatch = url.match(/^\/api\/research\/cases\/([^/]+)$/);
+    if (caseGetMatch && method === 'GET') {
+      res.setHeader('Content-Type', 'application/json');
+      try {
+        const { handleGetResearchCase } = await import('./server/api/research/cases');
+        const result = await handleGetResearchCase(caseGetMatch[1]);
+        res.statusCode = result.caseData ? 200 : 404;
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        res.statusCode = 500;
+        res.end(JSON.stringify({ error: (err as Error).message }));
+      }
+      return;
+    }
+
+    // --------------------------------------------------------
+    // POST-only routes (existing + new research routes)
+    // --------------------------------------------------------
+    if (method !== 'POST') {
       res.statusCode = 405;
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ error: 'Method not allowed' }));
@@ -67,9 +127,26 @@ function apiServerPlugin(): Plugin {
           const result = await handleResearchRequest(body);
           res.statusCode = 200;
           res.end(JSON.stringify(result));
+        // -----------------------------------------------
+        // RESEARCH PERSISTENCE — POST routes
+        // -----------------------------------------------
+        } else if (url === '/api/research/cases') {
+          const { handleSaveResearchCase } = await import('./server/api/research/cases');
+          const result = await handleSaveResearchCase(body);
+          res.statusCode = result.success ? 201 : 500;
+          res.end(JSON.stringify(result));
         } else {
-          res.statusCode = 404;
-          res.end(JSON.stringify({ error: `Not found: ${url}` }));
+          // Check for /api/research/cases/:caseId/replay POST
+          const replayPostMatch = url.match(/^\/api\/research\/cases\/([^/]+)\/replay$/);
+          if (replayPostMatch) {
+            const { handleSaveReplayVerification } = await import('./server/api/research/cases');
+            const result = await handleSaveReplayVerification(replayPostMatch[1], body);
+            res.statusCode = result.success ? 201 : 500;
+            res.end(JSON.stringify(result));
+          } else {
+            res.statusCode = 404;
+            res.end(JSON.stringify({ error: `Not found: ${url}` }));
+          }
         }
       } catch (err) {
         res.setHeader('Content-Type', 'application/json');
@@ -122,6 +199,15 @@ export default defineConfig(({ mode }) => {
   }
   if (env.TAVILY_API_KEY) {
     process.env.TAVILY_API_KEY = env.TAVILY_API_KEY;
+  }
+  // Supabase — server-side only
+  // VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are automatically exposed to browser via VITE_ prefix
+  // SUPABASE_SERVICE_ROLE_KEY must NEVER be exposed to browser — loaded only for server handlers
+  if (env.SUPABASE_SERVICE_ROLE_KEY) {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
+  }
+  if (env.VITE_SUPABASE_URL) {
+    process.env.VITE_SUPABASE_URL = env.VITE_SUPABASE_URL;
   }
 
   return {

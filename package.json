@@ -7,12 +7,14 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "tsx tests/assistant.test.ts && tsx tests/riskCommittee.test.ts && tsx tests/researchAgent.test.ts && tsx tests/portfolio.test.ts && tsx tests/monteCarlo.test.ts && tsx tests/regimeMonteCarlo.test.ts && tsx tests/institutionalResearch.test.ts && tsx tests/researchAudit.test.ts && tsx tests/researchObservatory.test.ts && tsx tests/demoOrchestrator.test.ts"
+    "test": "tsx tests/assistant.test.ts && tsx tests/riskCommittee.test.ts && tsx tests/researchAgent.test.ts && tsx tests/portfolio.test.ts && tsx tests/monteCarlo.test.ts && tsx tests/regimeMonteCarlo.test.ts && tsx tests/institutionalResearch.test.ts && tsx tests/researchAudit.test.ts && tsx tests/researchObservatory.test.ts && tsx tests/demoOrchestrator.test.ts && tsx tests/supabasePersistence.test.ts",
+    "test:persistence": "tsx tests/supabasePersistence.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.23.0",
     "@react-three/drei": "^9.109.2",
     "@react-three/fiber": "^8.17.10",
+    "@supabase/supabase-js": "^2.116.0",
     "framer-motion": "^11.11.9",
     "lenis": "^1.1.14",
     "lucide-react": "^0.453.0",

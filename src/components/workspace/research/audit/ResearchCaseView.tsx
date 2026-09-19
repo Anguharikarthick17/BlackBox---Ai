@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { ResearchCase, ReplayVerificationRecord } from '../../../../core/research/audit/auditTypes';
 import { ResearchCaseFile } from './ResearchCaseFile';
 import { ReplayPanel } from './ReplayPanel';
@@ -8,6 +8,8 @@ import { AuditTimeline } from './AuditTimeline';
 import { CaseExportPanel } from './CaseExportPanel';
 import { globalAuditTimeline } from '../../../../core/research/audit/auditTimeline';
 import { globalResearchCaseStore } from '../../../../core/research/audit/researchCaseStore';
+import { saveResearchCase } from '../../../../core/persistence/researchPersistenceService';
+import { PersistenceStatusBadge } from '../PersistenceStatusBadge';
 import {
   FileText,
   RotateCcw,
@@ -18,6 +20,7 @@ import {
   ShieldCheck,
   AlertTriangle,
   Fingerprint,
+  CloudUpload,
 } from 'lucide-react';
 
 interface ResearchCaseViewProps {
@@ -31,7 +34,36 @@ export const ResearchCaseView: React.FC<ResearchCaseViewProps> = ({ caseData, on
   );
   const [latestVerification, setLatestVerification] = useState<ReplayVerificationRecord | undefined>(undefined);
 
-  // For diff comparison
+  // Persistence state
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+
+  const handleSaveCase = useCallback(async () => {
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      const result = await saveResearchCase(caseData, {
+        isDemo: false,
+        replayVerification: latestVerification,
+      });
+      if (result.success) {
+        setLastSavedAt(new Date());
+      } else {
+        setSaveError(result.offline
+          ? 'Saved locally (Supabase offline)'
+          : result.error || 'Save failed'
+        );
+        // Even on remote failure, treat local save as success for UX
+        if (result.offline) setLastSavedAt(new Date());
+      }
+    } catch (err) {
+      setSaveError((err as Error).message);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [caseData, latestVerification]);
+
   const allStoredCases = globalResearchCaseStore.listCases();
   const comparisonCandidates = allStoredCases.filter(c => c.caseId !== caseData.caseId);
   const [compareTargetId, setCompareTargetId] = useState<string>(
@@ -67,10 +99,20 @@ export const ResearchCaseView: React.FC<ResearchCaseViewProps> = ({ caseData, on
           </div>
 
           <div className="flex items-center gap-2 font-mono text-xs">
+            <PersistenceStatusBadge lastSavedAt={lastSavedAt} />
             <div className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 flex items-center gap-1.5">
               <Fingerprint className="w-3.5 h-3.5 text-cyan-400" />
               <span>{caseData.reproducibilityMetadata.canonicalOutputFingerprint.slice(0, 16)}</span>
             </div>
+            <button
+              onClick={handleSaveCase}
+              disabled={isSaving}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-900/40 hover:bg-cyan-900/70 border border-cyan-800/50 text-cyan-400 text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Persist this sealed case to Supabase research storage"
+            >
+              <CloudUpload className="w-3.5 h-3.5" />
+              {isSaving ? 'Saving...' : 'Save Case'}
+            </button>
           </div>
         </div>
 
