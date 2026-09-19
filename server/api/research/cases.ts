@@ -20,10 +20,21 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 let _serverClient: SupabaseClient | null = null;
 
+function normalizeSupabaseUrl(url?: string): string {
+  if (!url) return '';
+  const trimmed = url.trim();
+  const dashboardMatch = trimmed.match(/supabase\.com\/dashboard\/project\/([a-z0-9_-]+)/i);
+  if (dashboardMatch && dashboardMatch[1]) {
+    return `https://${dashboardMatch[1]}.supabase.co`;
+  }
+  return trimmed;
+}
+
 function getServerClient(): SupabaseClient | null {
   if (_serverClient) return _serverClient;
 
-  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+  const rawUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+  const url = normalizeSupabaseUrl(rawUrl);
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
   const anonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
 
