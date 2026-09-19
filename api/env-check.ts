@@ -1,11 +1,18 @@
 /**
- * BLACKBOX X — Vercel Serverless Function: Environment Configuration Check
+ * BLACKBOX X — Vercel Serverless Function: Environment Status Check
  * Route: GET /api/env-check
  */
 
-import { handleCors, sendResponse, getHealthPayload } from '../server/apiRouter';
+import { getHealthPayload, handleCors, sendResponse } from '../server/apiBundle.js';
 
 export default async function handler(req: any, res: any) {
   if (handleCors(req, res)) return;
-  return sendResponse(res, 200, getHealthPayload());
+
+  const health = getHealthPayload();
+  return sendResponse(res, 200, {
+    status: health.status,
+    environment: health.environment,
+    security: health.security,
+    timestamp: health.timestamp,
+  });
 }

@@ -3,8 +3,7 @@
  * Route: GET /api/research/cases/:caseId
  */
 
-import { handleGetResearchCase } from '../../../../server/api/research/cases';
-import { handleCors, sendResponse } from '../../../../server/apiRouter';
+import { handleGetResearchCase, handleCors, sendResponse } from '../../../../server/apiBundle.js';
 
 function extractCaseId(req: any): string {
   if (req.query?.caseId) {

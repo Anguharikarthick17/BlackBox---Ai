@@ -6,8 +6,7 @@
  * ⚠️ TAVILY_API_KEY remains server-side.
  */
 
-import { handleWebSearchRequest } from '../../server/api/web/search';
-import { handleCors, parseRequestBody, sendResponse } from '../../server/apiRouter';
+import { handleWebSearchRequest, handleCors, parseRequestBody, sendResponse } from '../../server/apiBundle.js';
 
 export default async function handler(req: any, res: any) {
   if (handleCors(req, res)) return;

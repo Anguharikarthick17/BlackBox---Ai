@@ -5,8 +5,7 @@
  * Executes a single quantitative tool deterministically on the server.
  */
 
-import { handleToolExecutionRequest } from '../../server/api/ai/tool';
-import { handleCors, parseRequestBody, sendResponse } from '../../server/apiRouter';
+import { handleToolExecutionRequest, handleCors, parseRequestBody, sendResponse } from '../../server/apiBundle.js';
 
 export default async function handler(req: any, res: any) {
   if (handleCors(req, res)) return;

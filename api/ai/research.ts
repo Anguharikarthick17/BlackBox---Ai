@@ -5,8 +5,7 @@
  * Orchestrates multi-phase bounded autonomous research loop on the server.
  */
 
-import { handleResearchRequest } from '../../server/api/ai/research';
-import { handleCors, parseRequestBody, sendResponse } from '../../server/apiRouter';
+import { handleResearchRequest, handleCors, parseRequestBody, sendResponse } from '../../server/apiBundle.js';
 
 export default async function handler(req: any, res: any) {
   if (handleCors(req, res)) return;

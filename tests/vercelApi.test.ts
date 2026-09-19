@@ -342,6 +342,34 @@ async function runVercelApiSuite() {
   const { maxDuration } = await import('../api/ai/chat');
   assert(maxDuration === 60, `api/ai/chat.ts exports maxDuration === 60 (got ${maxDuration})`);
 
+  // Test 18: Native Node ESM Module Resolution & Vercel Bundle Verification
+  console.log('\n--- Test 18: Native Node ESM Module Resolution & Vercel Bundle Verification ---');
+  const bundlePath = path.resolve(process.cwd(), 'server', 'apiBundle.js');
+  assert(fs.existsSync(bundlePath), 'server/apiBundle.js exists on disk');
+  const bundleStats = fs.statSync(bundlePath);
+  assert(bundleStats.size > 500 * 1024, `server/apiBundle.js contains full bundled runtime (${Math.round(bundleStats.size / 1024)} KB)`);
+
+  const ts = (await import('typescript')).default;
+  for (const ep of apiFiles) {
+    const src = fs.readFileSync(ep, 'utf8');
+    const compiled = ts.transpileModule(src, {
+      compilerOptions: {
+        target: ts.ScriptTarget.ES2020,
+        module: ts.ModuleKind.ESNext,
+      },
+    });
+
+    const testJsPath = ep.replace(/\.ts$/, `_esm_test_${Date.now()}.js`);
+    fs.writeFileSync(testJsPath, compiled.outputText);
+    try {
+      const mod = await import(`file://${testJsPath}`);
+      assert(typeof mod.default === 'function', `${path.basename(ep)} loads in native Node ESM without ERR_MODULE_NOT_FOUND`);
+    } finally {
+      if (fs.existsSync(testJsPath)) fs.unlinkSync(testJsPath);
+    }
+  }
+
+
   console.log('\n========================================================');
   console.log(`RESULTS: ${passedTests}/${totalTests} Tests Passed (100%)`);
   console.log('========================================================\n');

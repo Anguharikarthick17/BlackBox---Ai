@@ -1,12 +1,15 @@
 /**
- * BLACKBOX X — Vercel Serverless Function: Research Cases Collection
- * Routes:
- *   GET  /api/research/cases — List cases
- *   POST /api/research/cases — Persist sealed research case
+ * BLACKBOX X — Vercel Serverless Function: Research Cases (List & Save)
+ * Routes: GET /api/research/cases, POST /api/research/cases
  */
 
-import { handleListResearchCases, handleSaveResearchCase } from '../../server/api/research/cases';
-import { handleCors, parseRequestBody, extractQueryString, sendResponse } from '../../server/apiRouter';
+import {
+  handleListResearchCases,
+  handleSaveResearchCase,
+  handleCors,
+  parseRequestBody,
+  sendResponse,
+} from '../../server/apiBundle.js';
 
 export default async function handler(req: any, res: any) {
   if (handleCors(req, res)) return;
@@ -15,9 +18,7 @@ export default async function handler(req: any, res: any) {
 
   if (method === 'GET') {
     try {
-      const queryString = extractQueryString(req);
-      const params = new URLSearchParams(queryString);
-      const result = await handleListResearchCases(params);
+      const result = await handleListResearchCases();
       return sendResponse(res, 200, result);
     } catch (err) {
       return sendResponse(res, 500, { error: (err as Error).message });

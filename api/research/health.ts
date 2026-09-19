@@ -3,8 +3,7 @@
  * Route: GET /api/research/health
  */
 
-import { handleResearchHealthRequest } from '../../server/api/research/cases';
-import { handleCors, sendResponse } from '../../server/apiRouter';
+import { handleResearchHealthRequest, handleCors, sendResponse } from '../../server/apiBundle.js';
 
 export default async function handler(req: any, res: any) {
   if (handleCors(req, res)) return;

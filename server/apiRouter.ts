@@ -21,6 +21,21 @@ import {
   handleSaveReplayVerification,
 } from './api/research/cases';
 
+export {
+  handleRiskBriefRequest,
+  handleAssistantChatRequest,
+  handleToolExecutionRequest,
+  handleWebSearchRequest,
+  handleResearchRequest,
+  handleResearchHealthRequest,
+  handleListResearchCases,
+  handleGetResearchCase,
+  handleSaveResearchCase,
+  handleSaveReplayVerification,
+};
+
+
+
 export function normalizeApiPath(req: any): string {
   // If Vercel passed query.path as array or string (e.g. from [...path])
   if (req.query && req.query.path) {

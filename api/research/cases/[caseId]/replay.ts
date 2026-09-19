@@ -3,8 +3,12 @@
  * Route: POST /api/research/cases/:caseId/replay
  */
 
-import { handleSaveReplayVerification } from '../../../../server/api/research/cases';
-import { handleCors, parseRequestBody, sendResponse } from '../../../../server/apiRouter';
+import {
+  handleSaveReplayVerification,
+  handleCors,
+  parseRequestBody,
+  sendResponse,
+} from '../../../../server/apiBundle.js';
 
 function extractCaseId(req: any): string {
   if (req.query?.caseId) {

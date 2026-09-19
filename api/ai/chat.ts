@@ -6,8 +6,7 @@
  * ⚠️ Keeps all API keys strictly server-side.
  */
 
-import { handleAssistantChatRequest } from '../../server/api/ai/chat';
-import { handleCors, parseRequestBody, sendResponse } from '../../server/apiRouter';
+import { handleAssistantChatRequest, handleCors, parseRequestBody, sendResponse } from '../../server/apiBundle.js';
 
 export const maxDuration = 60;
 
