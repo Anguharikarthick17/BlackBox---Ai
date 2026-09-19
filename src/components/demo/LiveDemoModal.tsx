@@ -32,6 +32,8 @@ import {
   BarChart3,
   Layers,
   Lock,
+  Zap,
+  AlertCircle,
 } from 'lucide-react';
 import {
   DemoOrchestrator,
@@ -43,6 +45,8 @@ import {
   DEMO_QUESTION,
 } from '../../core/demo/demoOrchestrator';
 import { DemoStage, DemoState } from '../../core/demo/demoTypes';
+import { DataFlowPipeline } from './DataFlowPipeline';
+import { DataInspectorDrawer } from './DataInspectorDrawer';
 
 interface LiveDemoModalProps {
   isOpen: boolean;
@@ -73,6 +77,7 @@ export const LiveDemoModal: React.FC<LiveDemoModalProps> = ({
 }) => {
   const orchestrator = useMemo(() => new DemoOrchestrator({ autoAdvance: true, stageIntervalMs: 6500 }), []);
   const [demoState, setDemoState] = useState<DemoState>(orchestrator.getState());
+  const [isDataInspectorOpen, setIsDataInspectorOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -374,24 +379,116 @@ export const LiveDemoModal: React.FC<LiveDemoModalProps> = ({
                   "{DEMO_QUESTION}"
                 </h3>
               </div>
-              <div className="flex items-center gap-2 font-mono text-xs">
-                <span className="px-2 py-0.5 bg-[#EEEAE1] border border-border text-graphite">
+              <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+                {/* Inside vs Outside View Toggle */}
+                <div className="flex items-center bg-cream border border-border p-0.5 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => orchestrator.setViewMode('RESEARCH_VIEW')}
+                    className={`px-2.5 py-1 text-[11px] font-mono font-semibold transition-all ${
+                      demoState.viewMode === 'RESEARCH_VIEW'
+                        ? 'bg-graphite text-cream shadow-xs'
+                        : 'text-graphite/70 hover:text-graphite hover:bg-graphite/5'
+                    }`}
+                    title="View research hypotheses, evidence, findings, and risk"
+                  >
+                    RESEARCH VIEW
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => orchestrator.setViewMode('SYSTEM_VIEW')}
+                    className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-mono font-semibold transition-all ${
+                      demoState.viewMode === 'SYSTEM_VIEW'
+                        ? 'bg-crimson text-cream shadow-xs'
+                        : 'text-graphite/70 hover:text-graphite hover:bg-graphite/5'
+                    }`}
+                    title="View live data transformations, computational pipeline, and engines"
+                  >
+                    <Zap className="w-3 h-3" />
+                    <span>SYSTEM VIEW</span>
+                  </button>
+                </div>
+
+                {/* Inspect Data Trigger */}
+                <button
+                  type="button"
+                  onClick={() => setIsDataInspectorOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-cream border border-border hover:border-crimson/60 hover:text-crimson text-graphite transition-all shadow-2xs text-[11px] font-mono"
+                  title="Inspect raw OHLCV data, derived series, signals, trades, and metrics"
+                >
+                  <Database className="w-3 h-3 text-crimson" />
+                  <span>INSPECT DATA</span>
+                </button>
+
+                <span className="px-2 py-0.5 bg-[#EEEAE1] border border-border text-graphite hidden sm:inline">
                   BTC · 1,826 BARS
-                </span>
-                <span className="px-2 py-0.5 bg-[#EEEAE1] border border-border text-graphite">
-                  2019-2023
                 </span>
               </div>
             </div>
 
-            {/* Dynamic Stage Calculation Surface */}
+            {/* Dynamic Stage Calculation / Data Flow Surface */}
             <div className="flex-1 space-y-4">
-              {renderStageCalculationView(currentStage, results, orchestrator, onEnterResearch, onClose)}
+              {status === 'ERROR' ? (
+                <div className="p-6 bg-crimson/5 border border-crimson/40 text-graphite font-mono space-y-4 rounded-xs">
+                  <div className="flex items-center gap-2 text-crimson font-bold text-sm uppercase">
+                    <AlertCircle className="w-5 h-5" />
+                    <span>ENGINE ERROR</span>
+                  </div>
+                  <div className="space-y-1.5 text-xs bg-cream p-4 border border-border">
+                    <div>
+                      <span className="text-graphite/50 uppercase font-bold">ENGINE:</span>{' '}
+                      <span className="font-bold text-graphite">{currentStage}</span>
+                    </div>
+                    <div>
+                      <span className="text-graphite/50 uppercase font-bold">STATUS:</span>{' '}
+                      <span className="text-crimson font-bold">FAILED</span>
+                    </div>
+                    <div>
+                      <span className="text-graphite/50 uppercase font-bold">REASON:</span>{' '}
+                      <span className="text-graphite/80">{demoState.error || 'Deterministic engine exception'}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => orchestrator.restart()}
+                      className="px-4 py-1.5 bg-graphite text-cream text-xs font-bold hover:bg-crimson transition-colors"
+                    >
+                      RETRY
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="px-4 py-1.5 bg-cream border border-border text-xs font-bold hover:bg-graphite/10 transition-colors"
+                    >
+                      EXIT DEMO
+                    </button>
+                  </div>
+                </div>
+              ) : demoState.viewMode === 'SYSTEM_VIEW' ? (
+                <div className="flex-1 min-h-[480px]">
+                  <DataFlowPipeline
+                    demoState={demoState}
+                    onOpenDataInspector={() => setIsDataInspectorOpen(true)}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {renderStageCalculationView(currentStage, results, orchestrator, onEnterResearch, onClose)}
+                </div>
+              )}
             </div>
 
           </div>
 
         </div>
+
+        {/* Live Data Inspector Drawer */}
+        <DataInspectorDrawer
+          isOpen={isDataInspectorOpen}
+          onClose={() => setIsDataInspectorOpen(false)}
+          demoState={demoState}
+        />
 
         {/* ================================================================== */}
         {/* FOOTER DISCLAIMER                                                  */}

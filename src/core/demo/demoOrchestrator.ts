@@ -11,6 +11,8 @@ import {
   DemoState,
   DemoEngineResults,
   PedagogicalExplanation,
+  ViewMode,
+  DerivedSamplePoint,
 } from './demoTypes';
 
 import { getDataInRange, PRICE_DATA } from '../data';
@@ -112,6 +114,26 @@ export class DemoOrchestrator {
 
   private getInitialState(): DemoState {
     const rawPrices = getDataInRange(DEMO_ASSET, DEMO_START_DATE, DEMO_END_DATE);
+    const fastPeriod = DEFAULT_PARAMS.EMA_TREND?.shortPeriod ?? 12;
+    const slowPeriod = DEFAULT_PARAMS.EMA_TREND?.longPeriod ?? 26;
+    const initialSignals = generateSignals(rawPrices, 'EMA_TREND', DEFAULT_PARAMS.EMA_TREND);
+
+    // Compute derived sample for inspector
+    const derivedSample: DerivedSamplePoint[] = rawPrices.slice(0, 10).map((p, idx) => {
+      const prevClose = idx > 0 ? rawPrices[idx - 1].close : p.open;
+      const dailyReturnPct = prevClose > 0 ? ((p.close - prevClose) / prevClose) * 100 : 0;
+      const sig = initialSignals[idx] ?? 0;
+      return {
+        date: p.date,
+        close: p.close,
+        dailyReturnPct: Number(dailyReturnPct.toFixed(2)),
+        fastEma: undefined,
+        slowEma: undefined,
+        signal: sig,
+        position: sig === 1 ? 'LONG' : 'FLAT',
+      };
+    });
+
     const initialResults: DemoEngineResults = {
       question: DEMO_QUESTION,
       asset: DEMO_ASSET,
@@ -122,6 +144,13 @@ export class DemoOrchestrator {
         endDate: DEMO_END_DATE,
         observationCount: rawPrices.length || 1825,
       },
+      strategyParams: {
+        fastPeriod,
+        slowPeriod,
+        feeBps: 10,
+      },
+      priceSample: rawPrices.slice(0, 10),
+      derivedSample,
       hypotheses: [],
       evidenceRecords: [],
     };
@@ -129,6 +158,8 @@ export class DemoOrchestrator {
     return {
       currentStage: 'INTRO',
       status: 'IDLE',
+      engineExecutionStatus: 'IDLE',
+      viewMode: 'RESEARCH_VIEW',
       stageIndex: 0,
       totalStages: 11,
       progressPct: 0,
@@ -136,6 +167,12 @@ export class DemoOrchestrator {
       explanation: this.buildExplanation('INTRO', initialResults),
       results: initialResults,
     };
+  }
+
+  public setViewMode(mode: ViewMode): void {
+    if (this.state.viewMode === mode) return;
+    this.state.viewMode = mode;
+    this.notify();
   }
 
   public subscribe(listener: (state: DemoState) => void): () => void {
@@ -329,6 +366,8 @@ export class DemoOrchestrator {
   private async runStage(stage: DemoStage): Promise<void> {
     const rawPrices = getDataInRange(DEMO_ASSET, DEMO_START_DATE, DEMO_END_DATE);
     const duration = STAGE_DURATIONS[stage];
+
+    this.state.engineExecutionStatus = 'EXECUTING';
 
     try {
       switch (stage) {
@@ -806,10 +845,17 @@ export class DemoOrchestrator {
           break;
         }
       }
+      this.state.engineExecutionStatus = 'COMPLETE';
+      this.notify();
     } catch (err: any) {
       console.error(`Error in demo stage ${stage}:`, err);
       this.state.error = err?.message || 'Demo execution error';
       this.state.status = 'ERROR';
+      this.state.engineExecutionStatus = 'FAILED';
+      if (this.timerId) {
+        clearTimeout(this.timerId);
+        this.timerId = null;
+      }
       this.notify();
       return;
     }

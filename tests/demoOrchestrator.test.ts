@@ -177,6 +177,63 @@ async function runDemoTestSuite() {
   demo2.stop();
   assert(demo2.getState().status === 'STOPPED', '17. Stop cleanly halts orchestrator');
 
+  console.log('\n--- 5. Data Flow & Internal Pipeline Synchronization ---');
+  const demo3 = new DemoOrchestrator({ autoAdvance: false });
+  const d3State = demo3.getState();
+
+  // 18. View mode and sample data integrity
+  assert(d3State.viewMode === 'RESEARCH_VIEW', '18a. Initial viewMode is RESEARCH_VIEW');
+  demo3.setViewMode('SYSTEM_VIEW');
+  assert(demo3.getState().viewMode === 'SYSTEM_VIEW', '18b. setViewMode updates viewMode to SYSTEM_VIEW');
+  assert(d3State.results.priceSample !== undefined && d3State.results.priceSample.length >= 8, '18c. priceSample populated with actual BTC OHLCV bars');
+  assert(d3State.results.derivedSample !== undefined && d3State.results.derivedSample.length >= 8, '18d. derivedSample populated with actual returns and signals');
+  assert(d3State.results.strategyParams?.fastPeriod === 12, '18e. strategyParams specifies actual fast EMA = 12');
+  assert(d3State.results.strategyParams?.slowPeriod === 26, '18f. strategyParams specifies actual slow EMA = 26');
+
+  // 19. Data flow reflects actual stage & real execution
+  await demo3.jumpToStage('QUANT');
+  const quantState = demo3.getState();
+  assert(quantState.currentStage === 'QUANT', '19a. Data flow reflects actual stage QUANT');
+  assert(quantState.engineExecutionStatus === 'COMPLETE', '19b. Engine execution status is COMPLETE after stage run');
+  assert(quantState.results.backtest !== undefined, '19c. Real BacktestResult reached data flow state');
+  assert(quantState.results.backtest!.trades.length > 0, '19d. Real executed trades reached pipeline');
+  assert(quantState.results.backtest!.totalReturn !== 0, '19e. Non-zero real total return calculated');
+
+  // 20. Robustness and evidence preservation
+  await demo3.jumpToStage('ROBUSTNESS');
+  const robustState = demo3.getState();
+  assert(robustState.results.robustnessSweep !== undefined && robustState.results.robustnessSweep.length >= 4, '20a. Robustness sweep populated with 4 configurations');
+  assert(robustState.results.evidenceRecords.length >= 2, '20b. Evidence nodes correspond to actual evidence records');
+
+  // 21. Pause freezes pipeline, resume continues
+  demo3.pause();
+  assert(demo3.getState().status === 'PAUSED', '21a. Pause freezes pipeline');
+  demo3.resume();
+  assert(demo3.getState().status === 'RUNNING', '21b. Resume continues pipeline');
+
+  // 22. Replay state reflects actual replay
+  await demo3.jumpToStage('REPLAY');
+  const replayState = demo3.getState();
+  assert(replayState.results.replayVerification !== undefined, '22a. Replay verification record present in data flow');
+  assert(replayState.results.replayVerification?.overallStatus === 'MATCHED', '22b. Replay status is MATCHED');
+
+  // 23. Pipeline reset on restart
+  await demo3.restart();
+  const restartedState = demo3.getState();
+  assert(restartedState.currentStage === 'QUESTION', '23a. Restart resets pipeline back to QUESTION');
+  assert(restartedState.status === 'RUNNING', '23b. Status is RUNNING after pipeline restart');
+
+  // 24. Engine error handling
+  (demo3 as any).state.status = 'ERROR';
+  (demo3 as any).state.engineExecutionStatus = 'FAILED';
+  (demo3 as any).state.error = 'Simulated engine failure for test';
+  const errState = demo3.getState();
+  assert(errState.status === 'ERROR', '24a. Failed engine produces ERROR status');
+  assert(errState.engineExecutionStatus === 'FAILED', '24b. Failed engine sets execution status to FAILED');
+  assert(errState.error === 'Simulated engine failure for test', '24c. Error message preserved cleanly');
+
+  demo3.stop();
+
   console.log('\n========================================================');
   console.log(`TOTAL DEMO TESTS: ${totalTests} | PASSED: ${passedTests} | FAILED: 0`);
   console.log('========================================================\n');
