@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "tsx tests/assistant.test.ts && tsx tests/riskCommittee.test.ts && tsx tests/researchAgent.test.ts && tsx tests/portfolio.test.ts && tsx tests/monteCarlo.test.ts && tsx tests/regimeMonteCarlo.test.ts && tsx tests/institutionalResearch.test.ts && tsx tests/researchAudit.test.ts && tsx tests/researchObservatory.test.ts && tsx tests/demoOrchestrator.test.ts && tsx tests/supabasePersistence.test.ts && tsx tests/processUniverse.test.ts",
+    "test": "tsx tests/assistant.test.ts && tsx tests/riskCommittee.test.ts && tsx tests/researchAgent.test.ts && tsx tests/portfolio.test.ts && tsx tests/monteCarlo.test.ts && tsx tests/regimeMonteCarlo.test.ts && tsx tests/institutionalResearch.test.ts && tsx tests/researchAudit.test.ts && tsx tests/researchObservatory.test.ts && tsx tests/demoOrchestrator.test.ts && tsx tests/supabasePersistence.test.ts && tsx tests/processUniverse.test.ts && tsx tests/vercelApi.test.ts",
     "test:persistence": "tsx tests/supabasePersistence.test.ts"
   },
   "dependencies": {
