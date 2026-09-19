@@ -257,6 +257,87 @@ async function runVercelApiSuite() {
   assert(directCasesRes.statusCode === 200, 'api/research/cases.ts directly returns 200 OK (NOT 404)');
   assert(Array.isArray(directCasesRes.body.cases), 'api/research/cases.ts returns cases array');
 
+  // Test 13: Direct Vercel Entrypoint: api/ai/research.ts
+  console.log('\n--- Test 13: Direct Vercel Entrypoint: api/ai/research.ts ---');
+  const { default: aiResearchHandler } = await import('../api/ai/research');
+  const directResearchHttp = createMockHttp({
+    method: 'POST',
+    url: '/api/ai/research',
+    body: {
+      question: 'Evaluate EMA strategy risk for BTC',
+      mode: 'HYBRID',
+      currentContext: { asset: 'BTC', strategy: 'EMA_TREND' },
+    },
+  });
+  await aiResearchHandler(directResearchHttp.req, directResearchHttp.res);
+  const directResearchRes = directResearchHttp.getResponse();
+  assert(directResearchRes.statusCode === 200, 'api/ai/research.ts directly returns 200 OK (NOT 404)');
+
+  // Test 14: Direct Vercel Entrypoint: api/risk-brief.ts
+  console.log('\n--- Test 14: Direct Vercel Entrypoint: api/risk-brief.ts ---');
+  const { default: riskBriefHandler } = await import('../api/risk-brief');
+  const directRiskHttp = createMockHttp({
+    method: 'POST',
+    url: '/api/risk-brief',
+    body: {
+      snapshot: {
+        portfolio: { totalValue: 1000000, dailyPnl: 2500 },
+        risk: { portfolioVaR95: 0.024, maxDrawdown: 0.12, beta: 0.95 },
+      },
+    },
+  });
+  await riskBriefHandler(directRiskHttp.req, directRiskHttp.res);
+  const directRiskRes = directRiskHttp.getResponse();
+  assert(directRiskRes.statusCode === 200, 'api/risk-brief.ts directly returns 200 OK (NOT 404)');
+
+  // Test 15: Direct Vercel Entrypoint: api/web/search.ts
+  console.log('\n--- Test 15: Direct Vercel Entrypoint: api/web/search.ts ---');
+  const { default: webSearchHandler } = await import('../api/web/search');
+  const directSearchHttp = createMockHttp({
+    method: 'POST',
+    url: '/api/web/search',
+    body: { query: 'Federal Reserve rate decision market impact' },
+  });
+  await webSearchHandler(directSearchHttp.req, directSearchHttp.res);
+  const directSearchRes = directSearchHttp.getResponse();
+  assert(directSearchRes.statusCode === 200, 'api/web/search.ts directly returns 200 OK (NOT 404)');
+
+  // Test 16: Direct Vercel Entrypoint: api/research/health.ts
+  console.log('\n--- Test 16: Direct Vercel Entrypoint: api/research/health.ts ---');
+  const { default: researchHealthHandler } = await import('../api/research/health');
+  const directResHealthHttp = createMockHttp({ method: 'GET', url: '/api/research/health' });
+  await researchHealthHandler(directResHealthHttp.req, directResHealthHttp.res);
+  const directResHealthRes = directResHealthHttp.getResponse();
+  assert(
+    directResHealthRes.statusCode === 200 || directResHealthRes.statusCode === 503,
+    'api/research/health.ts directly returns valid status (NOT 404)'
+  );
+
+  // Test 17: Vercel Hobby Plan Function Count Audit (Must be <= 12)
+  console.log('\n--- Test 17: Vercel Function Count Audit ---');
+  const fs = await import('fs');
+  const path = await import('path');
+  function countFiles(dir: string): string[] {
+    let results: string[] = [];
+    const list = fs.readdirSync(dir);
+    list.forEach((file) => {
+      const fullPath = path.join(dir, file);
+      const stat = fs.statSync(fullPath);
+      if (stat && stat.isDirectory()) {
+        results = results.concat(countFiles(fullPath));
+      } else if (file.endsWith('.ts') || file.endsWith('.js')) {
+        results.push(fullPath);
+      }
+    });
+    return results;
+  }
+  const apiFiles = countFiles(path.resolve(process.cwd(), 'api'));
+  console.log(`Detected Vercel Serverless Function files (${apiFiles.length}):`);
+  apiFiles.forEach((f) => console.log(`  - ${path.relative(process.cwd(), f)}`));
+  assert(apiFiles.length <= 12, `Vercel function count (${apiFiles.length}) is <= 12 Hobby limit`);
+  assert(apiFiles.length <= 11, `Vercel function count (${apiFiles.length}) is <= 11 target`);
+  assert(!apiFiles.some(f => f.includes('[...path]')), 'api/[...path].ts is successfully removed');
+
   console.log('\n========================================================');
   console.log(`RESULTS: ${passedTests}/${totalTests} Tests Passed (100%)`);
   console.log('========================================================\n');
