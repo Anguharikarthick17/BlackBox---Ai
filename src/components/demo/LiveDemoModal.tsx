@@ -34,6 +34,7 @@ import {
   Lock,
   Zap,
   AlertCircle,
+  Globe,
 } from 'lucide-react';
 import {
   DemoOrchestrator,
@@ -47,6 +48,7 @@ import {
 import { DemoStage, DemoState } from '../../core/demo/demoTypes';
 import { DataFlowPipeline } from './DataFlowPipeline';
 import { DataInspectorDrawer } from './DataInspectorDrawer';
+import { ProcessUniverse } from './universe/ProcessUniverse';
 
 interface LiveDemoModalProps {
   isOpen: boolean;
@@ -107,12 +109,23 @@ export const LiveDemoModal: React.FC<LiveDemoModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-2 sm:p-4 md:p-6 overflow-hidden animate-fadeIn">
       {/* Container Card */}
-      <div className="flex flex-col w-full max-w-7xl h-[94vh] bg-[#FAF8F5] border border-border/80 shadow-2xl rounded-sm overflow-hidden text-graphite font-sans">
-        
-        {/* ================================================================== */}
-        {/* TOP CONTROL BAR                                                    */}
-        {/* ================================================================== */}
-        <header className="flex flex-wrap items-center justify-between px-4 py-3 bg-[#F4F1EB] border-b border-border gap-3 shrink-0">
+      <div className={`flex flex-col w-full max-w-7xl h-[94vh] ${demoState.viewMode === 'PROCESS_UNIVERSE' ? 'bg-[#0B0B0C]' : 'bg-[#FAF8F5]'} border border-border/80 shadow-2xl rounded-sm overflow-hidden text-graphite font-sans relative`}>
+        {demoState.viewMode === 'PROCESS_UNIVERSE' ? (
+          <div className="flex-1 w-full min-h-0 relative bg-[#0B0B0C]">
+            <ProcessUniverse
+              demoState={demoState}
+              orchestrator={orchestrator}
+              onOpenDataInspector={() => setIsDataInspectorOpen(true)}
+              onClose={onClose}
+              onEnterResearch={onEnterResearch}
+            />
+          </div>
+        ) : (
+          <>
+            {/* ================================================================== */}
+            {/* TOP CONTROL BAR                                                    */}
+            {/* ================================================================== */}
+            <header className="flex flex-wrap items-center justify-between px-4 py-3 bg-[#F4F1EB] border-b border-border gap-3 shrink-0">
           {/* Brand & Badge */}
           <div className="flex items-center gap-3">
             <div className="px-2 py-0.5 bg-crimson text-cream font-mono text-[10px] uppercase font-bold tracking-widest rounded-none">
@@ -384,6 +397,15 @@ export const LiveDemoModal: React.FC<LiveDemoModalProps> = ({
                 <div className="flex items-center bg-cream border border-border p-0.5 shadow-2xs">
                   <button
                     type="button"
+                    onClick={() => orchestrator.setViewMode('PROCESS_UNIVERSE')}
+                    className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-mono font-semibold transition-all text-graphite/70 hover:text-graphite hover:bg-graphite/5"
+                    title="View 3D Process Universe"
+                  >
+                    <Globe className="w-3 h-3" />
+                    <span>3D UNIVERSE</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => orchestrator.setViewMode('RESEARCH_VIEW')}
                     className={`px-2.5 py-1 text-[11px] font-mono font-semibold transition-all ${
                       demoState.viewMode === 'RESEARCH_VIEW'
@@ -483,13 +505,6 @@ export const LiveDemoModal: React.FC<LiveDemoModalProps> = ({
 
         </div>
 
-        {/* Live Data Inspector Drawer */}
-        <DataInspectorDrawer
-          isOpen={isDataInspectorOpen}
-          onClose={() => setIsDataInspectorOpen(false)}
-          demoState={demoState}
-        />
-
         {/* ================================================================== */}
         {/* FOOTER DISCLAIMER                                                  */}
         {/* ================================================================== */}
@@ -502,6 +517,15 @@ export const LiveDemoModal: React.FC<LiveDemoModalProps> = ({
             <span>PRESS [SPACE] TO PAUSE/RESUME · [ESC] TO EXIT</span>
           </div>
         </footer>
+          </>
+        )}
+
+        {/* Live Data Inspector Drawer */}
+        <DataInspectorDrawer
+          isOpen={isDataInspectorOpen}
+          onClose={() => setIsDataInspectorOpen(false)}
+          demoState={demoState}
+        />
 
       </div>
     </div>

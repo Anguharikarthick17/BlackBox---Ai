@@ -159,7 +159,7 @@ export class DemoOrchestrator {
       currentStage: 'INTRO',
       status: 'IDLE',
       engineExecutionStatus: 'IDLE',
-      viewMode: 'RESEARCH_VIEW',
+      viewMode: 'PROCESS_UNIVERSE',
       stageIndex: 0,
       totalStages: 11,
       progressPct: 0,

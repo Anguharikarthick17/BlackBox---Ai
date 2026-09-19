@@ -182,9 +182,11 @@ async function runDemoTestSuite() {
   const d3State = demo3.getState();
 
   // 18. View mode and sample data integrity
-  assert(d3State.viewMode === 'RESEARCH_VIEW', '18a. Initial viewMode is RESEARCH_VIEW');
+  assert(d3State.viewMode === 'PROCESS_UNIVERSE', '18a. Initial viewMode is PROCESS_UNIVERSE');
+  demo3.setViewMode('RESEARCH_VIEW');
+  assert(demo3.getState().viewMode === 'RESEARCH_VIEW', '18b. setViewMode updates viewMode to RESEARCH_VIEW');
   demo3.setViewMode('SYSTEM_VIEW');
-  assert(demo3.getState().viewMode === 'SYSTEM_VIEW', '18b. setViewMode updates viewMode to SYSTEM_VIEW');
+  assert(demo3.getState().viewMode === 'SYSTEM_VIEW', '18c. setViewMode updates viewMode to SYSTEM_VIEW');
   assert(d3State.results.priceSample !== undefined && d3State.results.priceSample.length >= 8, '18c. priceSample populated with actual BTC OHLCV bars');
   assert(d3State.results.derivedSample !== undefined && d3State.results.derivedSample.length >= 8, '18d. derivedSample populated with actual returns and signals');
   assert(d3State.results.strategyParams?.fastPeriod === 12, '18e. strategyParams specifies actual fast EMA = 12');

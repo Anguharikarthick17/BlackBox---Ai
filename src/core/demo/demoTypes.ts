@@ -41,7 +41,34 @@ export type DemoStatus = 'IDLE' | 'RUNNING' | 'PAUSED' | 'STOPPED' | 'COMPLETE' 
 
 export type StepIndicatorStatus = 'WAITING' | 'RUNNING' | 'COMPLETE';
 
-export type ViewMode = 'RESEARCH_VIEW' | 'SYSTEM_VIEW';
+export type ViewMode = 'PROCESS_UNIVERSE' | 'RESEARCH_VIEW' | 'SYSTEM_VIEW';
+
+export type ProcessUniverseStageId =
+  | 'DATA'
+  | 'TRANSFORM'
+  | 'INDICATORS'
+  | 'SIGNALS'
+  | 'EXECUTION'
+  | 'PORTFOLIO'
+  | 'RISK'
+  | 'ROBUSTNESS'
+  | 'REGIMES'
+  | 'STRESS'
+  | 'SIMULATION'
+  | 'EVIDENCE'
+  | 'RESEARCH'
+  | 'REPLAY';
+
+export interface ProcessUniverseStageConfig {
+  id: ProcessUniverseStageId;
+  order: number; // 1 to 14
+  label: string;
+  demoStage: DemoStage;
+  subtitle: string;
+  explanation: string;
+  cameraPosition: [number, number, number];
+  cameraTarget: [number, number, number];
+}
 
 export type PipelineNodeStatus = 'WAITING' | 'PROCESSING' | 'COMPLETE' | 'FAILED';
 
