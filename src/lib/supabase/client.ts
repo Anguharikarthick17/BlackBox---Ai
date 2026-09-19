@@ -19,7 +19,17 @@ const _env: Record<string, string | undefined> =
     ? (import.meta as any).env
     : process.env;
 
-const supabaseUrl = _env.VITE_SUPABASE_URL as string | undefined;
+function normalizeSupabaseUrl(url?: string): string | undefined {
+  if (!url) return undefined;
+  const trimmed = url.trim();
+  const dashboardMatch = trimmed.match(/supabase\.com\/dashboard\/project\/([a-z0-9_-]+)/i);
+  if (dashboardMatch && dashboardMatch[1]) {
+    return `https://${dashboardMatch[1]}.supabase.co`;
+  }
+  return trimmed;
+}
+
+const supabaseUrl = normalizeSupabaseUrl(_env.VITE_SUPABASE_URL as string | undefined);
 const supabaseAnonKey = _env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 /**

@@ -34,7 +34,18 @@ if (typeof window !== 'undefined') {
   );
 }
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+function normalizeSupabaseUrl(url?: string): string {
+  if (!url) return '';
+  const trimmed = url.trim();
+  const dashboardMatch = trimmed.match(/supabase\.com\/dashboard\/project\/([a-z0-9_-]+)/i);
+  if (dashboardMatch && dashboardMatch[1]) {
+    return `https://${dashboardMatch[1]}.supabase.co`;
+  }
+  return trimmed;
+}
+
+const rawUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+const supabaseUrl = normalizeSupabaseUrl(rawUrl);
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const anonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
 
