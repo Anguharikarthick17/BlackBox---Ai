@@ -11,7 +11,7 @@
  * 4. Strictly non-predictive institutional formatting
  */
 
-import { PortfolioWeights } from './portfolioTypes';
+import { PortfolioWeights, validateWeights } from './portfolioTypes';
 import { RegimeType, REGIME_LABELS } from '../regimes';
 import {
   RegimeMonteCarloMethod,
@@ -34,13 +34,14 @@ export * from './regimeMonteCarloEngine';
  * under identical portfolio weights, horizon, method, and seed.
  */
 export function compareRegimeSimulations(
-  weights: PortfolioWeights,
+  weights: Partial<PortfolioWeights>,
   method: RegimeMonteCarloMethod = 'REGIME_BOOTSTRAP',
   horizonDays = 252,
   simulationCount = 5000,
   seed = 42
 ): RegimeComparisonMatrixResult {
-  const observations = getAlignedRegimeSequence(weights);
+  const normalizedWeights = validateWeights(weights).normalizedWeights;
+  const observations = getAlignedRegimeSequence(normalizedWeights);
   const transitionMatrix = buildRegimeTransitionMatrix(observations);
 
   const regimes: RegimeType[] = ['BULL', 'BEAR', 'HIGH_VOL', 'LOW_VOL'];
@@ -54,7 +55,7 @@ export function compareRegimeSimulations(
       const res = runRegimeMonteCarloSimulation({
         method,
         startingRegimeMode: startMode,
-        portfolioWeights: weights,
+        portfolioWeights: normalizedWeights,
         horizonDays,
         simulationCount,
         seed,
@@ -98,7 +99,7 @@ export function compareRegimeSimulations(
           seed,
           simulationCount,
           horizonDays,
-          portfolioWeights: weights,
+          portfolioWeights: normalizedWeights,
           rebalanceSchedule: 'MONTHLY',
           transactionCostBps: 10,
           conditionalMoments: {
@@ -175,7 +176,7 @@ export function compareRegimeSimulations(
     method,
     horizonDays,
     simulationCount,
-    portfolioWeights: weights,
+    portfolioWeights: normalizedWeights,
     comparisons,
     table,
     transitionMatrix,

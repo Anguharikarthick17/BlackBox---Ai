@@ -43,6 +43,13 @@ export function EfficientFrontierView({ currentWeights }: EfficientFrontierViewP
     calReturn: p.expectedReturn,
   }));
 
+  const currentVol = Number.isFinite(currentMetrics?.annualizedVolatility)
+    ? parseFloat(currentMetrics.annualizedVolatility.toFixed(2))
+    : 0;
+  const currentCagr = Number.isFinite(currentMetrics?.cagr)
+    ? parseFloat(currentMetrics.cagr.toFixed(2))
+    : 0;
+
   return (
     <div className="bg-white border border-border rounded-lg p-5 shadow-subtle">
       <div className="flex items-center justify-between mb-4">
@@ -132,14 +139,16 @@ export function EfficientFrontierView({ currentWeights }: EfficientFrontierViewP
             />
 
             {/* Reference Dot: Current Portfolio */}
-            <ReferenceDot
-              x={parseFloat(currentMetrics.annualizedVolatility.toFixed(2))}
-              y={parseFloat(currentMetrics.cagr.toFixed(2))}
-              r={6}
-              fill="#2563EB"
-              stroke="#FFFFFF"
-              strokeWidth={2}
-            />
+            {Number.isFinite(currentVol) && Number.isFinite(currentCagr) && (
+              <ReferenceDot
+                x={currentVol}
+                y={currentCagr}
+                r={6}
+                fill="#2563EB"
+                stroke="#FFFFFF"
+                strokeWidth={2}
+              />
+            )}
 
             {/* Reference Dot: Tangency / Max Sharpe */}
             <ReferenceDot

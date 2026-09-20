@@ -3,7 +3,7 @@
  * Monte Carlo & Probabilistic Risk Intelligence Types
  */
 
-import { Asset, PortfolioWeights, RebalanceFrequency } from './portfolioTypes';
+import { Asset, PortfolioWeights, RebalanceFrequency, validateWeights } from './portfolioTypes';
 
 export type MonteCarloMethod = 'HISTORICAL_BOOTSTRAP' | 'PARAMETRIC_NORMAL';
 

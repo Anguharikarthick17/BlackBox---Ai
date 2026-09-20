@@ -295,7 +295,10 @@ export function computePortfolioMetrics(
 
   const totalReturn = (currentEquity - 1.0) * 100;
   // CAGR = (E_T / E_0)^(252 / T) - 1
-  const cagr = (Math.pow(currentEquity, TRADING_DAYS_PER_YEAR / T) - 1) * 100;
+  const cagr =
+    currentEquity > 0
+      ? (Math.pow(currentEquity, TRADING_DAYS_PER_YEAR / T) - 1) * 100
+      : -100;
 
   // 2. Annualized Volatility from Covariance Matrix
   const volDecimal = computePortfolioVolatility(w, dataset.annualizedCovarianceMatrix);
@@ -310,7 +313,7 @@ export function computePortfolioMetrics(
     excessReturns.reduce((sum, v) => sum + Math.pow(v - meanExcess, 2), 0) / (T - 1);
   const stdExcess = Math.sqrt(varExcess);
   const sharpeRatio =
-    stdExcess > 0
+    stdExcess > 1e-5 && annualizedVolatility > 1e-4
       ? parseFloat(((meanExcess / stdExcess) * Math.sqrt(TRADING_DAYS_PER_YEAR)).toFixed(2))
       : 0;
 
@@ -319,7 +322,7 @@ export function computePortfolioMetrics(
 
   // 5. Calmar Ratio
   const calmarRatio =
-    Math.abs(maxDrawdownPct) > 0.001
+    Math.abs(maxDrawdownPct) > 0.001 && Number.isFinite(cagr)
       ? parseFloat((cagr / Math.abs(maxDrawdownPct)).toFixed(2))
       : 0;
 
@@ -328,12 +331,12 @@ export function computePortfolioMetrics(
 
   return {
     weights: w,
-    totalReturn: parseFloat(totalReturn.toFixed(2)),
-    cagr: parseFloat(cagr.toFixed(2)),
-    annualizedVolatility: parseFloat(annualizedVolatility.toFixed(2)),
-    sharpeRatio,
-    maxDrawdown: maxDrawdownPct,
-    calmarRatio,
+    totalReturn: Number.isFinite(totalReturn) ? parseFloat(totalReturn.toFixed(2)) : 0,
+    cagr: Number.isFinite(cagr) ? parseFloat(cagr.toFixed(2)) : 0,
+    annualizedVolatility: Number.isFinite(annualizedVolatility) ? parseFloat(annualizedVolatility.toFixed(2)) : 0,
+    sharpeRatio: Number.isFinite(sharpeRatio) ? sharpeRatio : 0,
+    maxDrawdown: Number.isFinite(maxDrawdownPct) ? maxDrawdownPct : 0,
+    calmarRatio: Number.isFinite(calmarRatio) ? calmarRatio : 0,
     var95: varReport.var95,
     var99: varReport.var99,
     cvar95: varReport.cvar95,

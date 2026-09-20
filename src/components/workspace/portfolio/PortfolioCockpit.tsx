@@ -32,15 +32,27 @@ import { PortfolioStressView } from './PortfolioStressView';
 import { PortfolioRegimesView } from './PortfolioRegimesView';
 import { MonteCarloLab } from './MonteCarloLab';
 import { RegimeIntelligenceLab } from './RegimeIntelligenceLab';
+import { PortfolioErrorBoundary } from './PortfolioErrorBoundary';
+
+import { useResearchStore } from '../../../store/researchStore';
+import { validateWeights } from '../../../core/portfolio/portfolioTypes';
 
 export function PortfolioCockpit() {
   const [weights, setWeights] = useState<PortfolioWeights>(DEFAULT_PORTFOLIO_WEIGHTS);
+  const selectedAsset = useResearchStore((s) => s.selectedAsset);
+  const setAsset = useResearchStore((s) => s.setAsset);
 
-  const metrics = useMemo(() => computePortfolioMetrics(weights), [weights]);
-  const riskContribution = useMemo(() => computeRiskContribution(weights), [weights]);
+  // Safely normalize weights for calculation engines that require simplex coordinates w in Delta^2
+  const normalizedWeights = useMemo(() => {
+    return validateWeights(weights).normalizedWeights;
+  }, [weights]);
+
+  const metrics = useMemo(() => computePortfolioMetrics(normalizedWeights), [normalizedWeights]);
+  const riskContribution = useMemo(() => computeRiskContribution(normalizedWeights), [normalizedWeights]);
 
   return (
-    <div className="max-w-screen-2xl mx-auto px-4 py-6 space-y-6">
+    <PortfolioErrorBoundary onReset={() => setWeights(DEFAULT_PORTFOLIO_WEIGHTS)}>
+      <div className="max-w-screen-2xl mx-auto px-4 py-6 space-y-6">
       {/* Cockpit Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
         <div>
@@ -60,20 +72,39 @@ export function PortfolioCockpit() {
           </p>
         </div>
 
-        {/* Global Universe Tag */}
-        <div className="flex items-center gap-3 text-xs font-mono">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-white border border-border">
-            <span className="w-2 h-2 rounded-full bg-[#E5A93C]" />
-            <span>Gold (XAU)</span>
-          </div>
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-white border border-border">
-            <span className="w-2 h-2 rounded-full bg-[#F7931A]" />
-            <span>Bitcoin (BTC)</span>
-          </div>
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-white border border-border">
-            <span className="w-2 h-2 rounded-full bg-[#76B900]" />
-            <span>NVIDIA (NVDA)</span>
-          </div>
+        {/* Global Universe Tag (Interactive Asset Buttons) */}
+        <div className="flex items-center gap-2 text-xs font-mono">
+          {([
+            { id: 'GOLD', label: 'Gold (XAU)', color: '#E5A93C' },
+            { id: 'BTC', label: 'Bitcoin (BTC)', color: '#F7931A' },
+            { id: 'NVDA', label: 'NVIDIA (NVDA)', color: '#76B900' },
+          ] as const).map(({ id, label, color }) => {
+            const is100 = weights[id] >= 0.99;
+            const isSelected = selectedAsset === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setWeights({
+                    GOLD: id === 'GOLD' ? 1.0 : 0.0,
+                    BTC: id === 'BTC' ? 1.0 : 0.0,
+                    NVDA: id === 'NVDA' ? 1.0 : 0.0,
+                  });
+                  setAsset(id);
+                }}
+                title={`Click to set 100% allocation to ${label}`}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded border transition-all cursor-pointer ${
+                  is100 || isSelected
+                    ? 'bg-white border-graphite text-graphite shadow-xs font-bold'
+                    : 'bg-white/80 border-border text-graphite-500 hover:border-graphite/50 hover:text-graphite'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                <span>{label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -96,14 +127,26 @@ export function PortfolioCockpit() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {(['GOLD', 'BTC', 'NVDA'] as const).map(asset => {
-            const capWeight = (weights[asset] || 0) * 100;
-            const riskWeight = (riskContribution.percentageRisk[asset] || 0) * 100;
+            const capWeight = Math.max(0, (weights[asset] || 0) * 100);
+            const rawRisk = (riskContribution?.percentageRisk?.[asset] ?? 0) * 100;
+            const riskWeight = Math.abs(rawRisk) < 0.001 ? 0 : rawRisk;
             const diff = riskWeight - capWeight;
             const isRiskDominant = diff > 5;
             const isDampener = diff < -5;
 
             return (
-              <div key={asset} className="border border-border/80 rounded-md p-3.5 bg-ivory-50/70">
+              <div
+                key={asset}
+                onClick={() =>
+                  setWeights({
+                    GOLD: asset === 'GOLD' ? 1.0 : 0.0,
+                    BTC: asset === 'BTC' ? 1.0 : 0.0,
+                    NVDA: asset === 'NVDA' ? 1.0 : 0.0,
+                  })
+                }
+                title={`Click to set 100% allocation to ${asset}`}
+                className="border border-border/80 rounded-md p-3.5 bg-ivory-50/70 hover:border-graphite/40 transition-colors cursor-pointer"
+              >
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <span
@@ -169,7 +212,7 @@ export function PortfolioCockpit() {
           onApplyPreset={setWeights}
         />
         <RiskContributionView
-          weights={weights}
+          weights={normalizedWeights}
           riskContribution={riskContribution}
         />
       </div>
@@ -181,22 +224,23 @@ export function PortfolioCockpit() {
       <OptimizationLab onApplyAllocation={setWeights} />
 
       {/* Row 4: Efficient Frontier & Capital Allocation Line */}
-      <EfficientFrontierView currentWeights={weights} />
+      <EfficientFrontierView currentWeights={normalizedWeights} />
 
       {/* Row 5: Rebalancing Backtest & Turnover Friction */}
-      <PortfolioBacktestView weights={weights} />
+      <PortfolioBacktestView weights={normalizedWeights} />
 
       {/* Row 6: Monte Carlo & Probabilistic Risk Intelligence */}
-      <MonteCarloLab weights={weights} />
+      <MonteCarloLab weights={normalizedWeights} />
 
       {/* Row 7: Regime-Aware Probabilistic Intelligence Lab (Phase 3.9) */}
-      <RegimeIntelligenceLab weights={weights} />
+      <RegimeIntelligenceLab weights={normalizedWeights} />
 
       {/* Row 8: Market Regime Breakdown & Stress Replay */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <PortfolioRegimesView weights={weights} />
-        <PortfolioStressView weights={weights} />
+        <PortfolioRegimesView weights={normalizedWeights} />
+        <PortfolioStressView weights={normalizedWeights} />
       </div>
-    </div>
+      </div>
+    </PortfolioErrorBoundary>
   );
 }

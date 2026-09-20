@@ -41,21 +41,25 @@ export function PortfolioBacktestView({ weights }: PortfolioBacktestViewProps) {
 
   // Subsample equity curve for smooth rendering
   const chartData = useMemo(() => {
+    if (!backtest?.dates?.length || !backtest?.equity?.length) {
+      return [];
+    }
     const step = Math.max(1, Math.floor(backtest.dates.length / 100));
     const sampled = [];
     for (let i = 0; i < backtest.dates.length; i += step) {
       sampled.push({
         date: backtest.dates[i],
-        equity: backtest.equity[i],
-        drawdown: backtest.drawdowns[i],
+        equity: Number.isFinite(backtest.equity[i]) ? backtest.equity[i] : 0,
+        drawdown: Number.isFinite(backtest.drawdowns[i]) ? backtest.drawdowns[i] : 0,
       });
     }
     // ensure last point is included
-    if (sampled[sampled.length - 1].date !== backtest.dates[backtest.dates.length - 1]) {
+    const lastIdx = backtest.dates.length - 1;
+    if (sampled.length > 0 && sampled[sampled.length - 1]?.date !== backtest.dates[lastIdx]) {
       sampled.push({
-        date: backtest.dates[backtest.dates.length - 1],
-        equity: backtest.equity[backtest.equity.length - 1],
-        drawdown: backtest.drawdowns[backtest.drawdowns.length - 1],
+        date: backtest.dates[lastIdx],
+        equity: Number.isFinite(backtest.equity[lastIdx]) ? backtest.equity[lastIdx] : 0,
+        drawdown: Number.isFinite(backtest.drawdowns[lastIdx]) ? backtest.drawdowns[lastIdx] : 0,
       });
     }
     return sampled;

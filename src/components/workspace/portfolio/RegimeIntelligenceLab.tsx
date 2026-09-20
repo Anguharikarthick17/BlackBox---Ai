@@ -36,7 +36,7 @@ import {
   BarChart2,
   ArrowRight,
 } from 'lucide-react';
-import { PortfolioWeights, RebalanceFrequency } from '../../../core/portfolio/portfolioTypes';
+import { PortfolioWeights, RebalanceFrequency, validateWeights } from '../../../core/portfolio/portfolioTypes';
 import {
   RegimeMonteCarloMethod,
   StartingRegimeMode,
@@ -77,10 +77,11 @@ export function RegimeIntelligenceLab({ weights }: RegimeIntelligenceLabProps) {
 
   // Initial deterministic result
   const [result, setResult] = useState<RegimeMonteCarloResult>(() => {
+    const sanitized = validateWeights(weights).normalizedWeights;
     return runRegimeMonteCarloSimulation({
       method: 'REGIME_BOOTSTRAP',
       startingRegimeMode: 'START_CURRENT_OBSERVED',
-      portfolioWeights: weights,
+      portfolioWeights: sanitized,
       simulationCount: 5000,
       horizonDays: 252,
       rebalanceSchedule: 'MONTHLY',
@@ -90,7 +91,8 @@ export function RegimeIntelligenceLab({ weights }: RegimeIntelligenceLabProps) {
 
   // Cross-regime comparison matrix (computed on demand or when tab is active)
   const comparisonResult: RegimeComparisonMatrixResult = useMemo(() => {
-    return compareRegimeSimulations(weights, method, horizonDays, Math.min(simCount, 5000), seed);
+    const sanitized = validateWeights(weights).normalizedWeights;
+    return compareRegimeSimulations(sanitized, method, horizonDays, Math.min(simCount, 5000), seed);
   }, [weights, method, horizonDays, simCount, seed]);
 
   // Ghost Mode deterministic insights
@@ -103,10 +105,11 @@ export function RegimeIntelligenceLab({ weights }: RegimeIntelligenceLabProps) {
     let isCancelled = false;
     setIsSimulating(true);
 
+    const sanitized = validateWeights(weights).normalizedWeights;
     runRegimeMonteCarloSimulationAsync({
       method,
       startingRegimeMode: startingMode,
-      portfolioWeights: weights,
+      portfolioWeights: sanitized,
       simulationCount: simCount,
       horizonDays,
       rebalanceSchedule,

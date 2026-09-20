@@ -185,13 +185,20 @@ export function validateWeights(weights: Partial<PortfolioWeights>): {
   }
 
   const sum = (weights.GOLD ?? 0) + (weights.BTC ?? 0) + (weights.NVDA ?? 0);
+  if (sum <= 1e-6) {
+    return {
+      isValid: false,
+      normalizedWeights: DEFAULT_PORTFOLIO_WEIGHTS,
+      error: 'Portfolio weights must sum to 1.0 (100%). Received sum: 0.00%',
+    };
+  }
   if (Math.abs(sum - 1.0) > 0.005) {
     return {
       isValid: false,
       normalizedWeights: {
-        GOLD: (weights.GOLD ?? 0) / (sum || 1),
-        BTC: (weights.BTC ?? 0) / (sum || 1),
-        NVDA: (weights.NVDA ?? 0) / (sum || 1),
+        GOLD: Math.max(0, (weights.GOLD ?? 0) / sum),
+        BTC: Math.max(0, (weights.BTC ?? 0) / sum),
+        NVDA: Math.max(0, (weights.NVDA ?? 0) / sum),
       },
       error: `Portfolio weights must sum to 1.0 (100%). Received sum: ${(sum * 100).toFixed(2)}%`,
     };

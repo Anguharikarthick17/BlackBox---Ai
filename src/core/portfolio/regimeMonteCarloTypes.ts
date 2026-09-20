@@ -8,7 +8,7 @@
  * conditional return pools, and regime-conditioned Monte Carlo contracts.
  */
 
-import { Asset, PortfolioWeights, RebalanceFrequency, validateWeights } from './portfolioTypes';
+import { Asset, PortfolioWeights, RebalanceFrequency, validateWeights, DEFAULT_PORTFOLIO_WEIGHTS } from './portfolioTypes';
 import type {
   PercentileSummary,
   SimulationTrajectoryBands,

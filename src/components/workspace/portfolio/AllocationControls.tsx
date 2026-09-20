@@ -74,13 +74,24 @@ export function AllocationControls({
           return (
             <div key={asset} className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onApplyPreset({
+                      GOLD: asset === 'GOLD' ? 1.0 : 0.0,
+                      BTC: asset === 'BTC' ? 1.0 : 0.0,
+                      NVDA: asset === 'NVDA' ? 1.0 : 0.0,
+                    })
+                  }
+                  title={`Click to set 100% ${ASSET_LABELS[asset]}`}
+                  className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer text-left"
+                >
                   <span
                     className="w-2.5 h-2.5 rounded-full"
                     style={{ backgroundColor: ASSET_COLORS[asset] }}
                   />
-                  <span className="font-medium text-graphite">{ASSET_LABELS[asset]}</span>
-                </div>
+                  <span className="font-medium text-graphite hover:underline">{ASSET_LABELS[asset]}</span>
+                </button>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs font-semibold text-graphite w-12 text-right">
                     {(weights[asset] * 100).toFixed(1)}%

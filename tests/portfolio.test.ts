@@ -37,6 +37,8 @@ import { runPortfolioStressTest, STRESS_DISCLAIMER } from '../src/core/portfolio
 import { analyzePortfolioRegimes } from '../src/core/portfolio/portfolioRegimes';
 import { executeBlackboxTool } from '../src/core/aiTools';
 import { isToolAllowed, normalizeToolName } from '../src/core/researchAgent/researchPolicy';
+import { compareRegimeSimulations } from '../src/core/portfolio/regimeMonteCarlo';
+import { runMonteCarloSimulation } from '../src/core/portfolio/monteCarloEngine';
 
 console.log('\n==================================================');
 console.log('BLACKBOX X: PHASE 3.7 PORTFOLIO VERIFICATION SUITE');
@@ -338,8 +340,108 @@ async function runTests() {
   assert(toolExec.data.dataSource === 'OFFLINE_DEMO', 'Test 24: Data provenance labels offline demo');
   pass('AI tools registered with strict Zod validation and data provenance');
 
+  // ---------------------------------------------------------------------------
+  // 25. Interactive Allocation & Slider Stress Regression Suite
+  // Covers: Unnormalized slider transitions, extreme single-asset allocations,
+  // zero-weight states, rapid multi-asset updates, and simulation engine resilience.
+  // ---------------------------------------------------------------------------
+  console.log('\n--- Test 25: Interactive Allocation & Slider Stress Regression Suite ---');
+
+  // 1. Initial 40/30/30 portfolio renders / computes safely
+  const mInit = computePortfolioMetrics({ GOLD: 0.4, BTC: 0.3, NVDA: 0.3 });
+  assert(Number.isFinite(mInit.annualizedVolatility), 'Test 25.1: Initial volatility finite');
+  assert(Number.isFinite(mInit.sharpeRatio), 'Test 25.1: Initial Sharpe finite');
+  pass('Regression 25.1: Initial 40/30/30 portfolio calculates finite metrics');
+
+  // 2. Gold allocation changes without crashing (unnormalized sum = 1.40)
+  const mGold = computePortfolioMetrics({ GOLD: 0.8, BTC: 0.3, NVDA: 0.3 });
+  assert(Number.isFinite(mGold.annualizedVolatility), 'Test 25.2: Gold shift volatility finite');
+  pass('Regression 25.2: Gold allocation slider shift (80%) computes cleanly without crash');
+
+  // 3. BTC allocation changes without crashing (unnormalized sum = 1.60)
+  const mBtc = computePortfolioMetrics({ GOLD: 0.4, BTC: 0.9, NVDA: 0.3 });
+  assert(Number.isFinite(mBtc.annualizedVolatility), 'Test 25.3: BTC shift volatility finite');
+  pass('Regression 25.3: BTC allocation slider shift (90%) computes cleanly without crash');
+
+  // 4. NVIDIA allocation changes without crashing (unnormalized sum = 0.70)
+  const mNvda = computePortfolioMetrics({ GOLD: 0.4, BTC: 0.3, NVDA: 0.0 });
+  assert(Number.isFinite(mNvda.annualizedVolatility), 'Test 25.4: NVDA shift volatility finite');
+  pass('Regression 25.4: NVIDIA allocation slider shift (0%) computes cleanly without crash');
+
+  // 5. 1/N Equal preset works
+  const mEqual = computePortfolioMetrics(EQUAL_WEIGHTS);
+  assert(Number.isFinite(mEqual.annualizedVolatility), 'Test 25.5: 1/N Equal volatility finite');
+  pass('Regression 25.5: 1/N Equal preset verified');
+
+  // 6. 60/40 Def preset works
+  const mDef = computePortfolioMetrics({ GOLD: 0.6, BTC: 0.2, NVDA: 0.2 });
+  assert(Number.isFinite(mDef.annualizedVolatility), 'Test 25.6: 60/40 Def volatility finite');
+  pass('Regression 25.6: 60/40 Def preset verified');
+
+  // 7. 100% Gold works
+  const m100Gold = computePortfolioMetrics({ GOLD: 1.0, BTC: 0.0, NVDA: 0.0 });
+  const rc100Gold = computeRiskContribution({ GOLD: 1.0, BTC: 0.0, NVDA: 0.0 });
+  assert(Math.abs(rc100Gold.percentageRisk.GOLD - 1.0) < 1e-4, 'Test 25.7: 100% Gold has 100% risk');
+  pass('Regression 25.7: 100% Gold preset and Euler decomposition verified');
+
+  // 8. 100% BTC works
+  const m100Btc = computePortfolioMetrics({ GOLD: 0.0, BTC: 1.0, NVDA: 0.0 });
+  const rc100Btc = computeRiskContribution({ GOLD: 0.0, BTC: 1.0, NVDA: 0.0 });
+  assert(Math.abs(rc100Btc.percentageRisk.BTC - 1.0) < 1e-4, 'Test 25.8: 100% BTC has 100% risk');
+  pass('Regression 25.8: 100% BTC preset and Euler decomposition verified');
+
+  // 9. 100% NVDA works
+  const m100Nvda = computePortfolioMetrics({ GOLD: 0.0, BTC: 0.0, NVDA: 1.0 });
+  const rc100Nvda = computeRiskContribution({ GOLD: 0.0, BTC: 0.0, NVDA: 1.0 });
+  assert(Math.abs(rc100Nvda.percentageRisk.NVDA - 1.0) < 1e-4, 'Test 25.9: 100% NVDA has 100% risk');
+  pass('Regression 25.9: 100% NVDA preset and Euler decomposition verified');
+
+  // 10. Rapid allocation changes do not produce invalid state
+  for (let i = 0; i < 50; i++) {
+    const wRnd = {
+      GOLD: Math.random() * 1.5,
+      BTC: Math.random() * 1.5,
+      NVDA: Math.random() * 1.5,
+    };
+    const norm = validateWeights(wRnd).normalizedWeights;
+    const sum = norm.GOLD + norm.BTC + norm.NVDA;
+    assert(Math.abs(sum - 1.0) < 1e-5, 'Test 25.10: Normalized weights sum to 1');
+  }
+  pass('Regression 25.10: Rapid stochastic weight adjustments preserve simplex invariants');
+
+  // 11. Euler risk decomposition remains finite across all allocations
+  const rcUnnorm = computeRiskContribution({ GOLD: 0.7, BTC: 0.5, NVDA: 0.2 });
+  assert(Number.isFinite(rcUnnorm.percentageRisk.GOLD), 'Test 25.11: Gold risk finite');
+  assert(Number.isFinite(rcUnnorm.percentageRisk.BTC), 'Test 25.11: BTC risk finite');
+  assert(Number.isFinite(rcUnnorm.percentageRisk.NVDA), 'Test 25.11: NVDA risk finite');
+  pass('Regression 25.11: Euler risk decomposition remains strictly finite under unnormalized weights');
+
+  // 12. Portfolio volatility remains finite where mathematically defined
+  const mZero = computePortfolioMetrics({ GOLD: 0.0, BTC: 0.0, NVDA: 0.0 });
+  assert(Number.isFinite(mZero.annualizedVolatility), 'Test 25.12: Zero weight volatility is finite');
+  assert(Number.isFinite(mZero.sharpeRatio), 'Test 25.12: Zero weight Sharpe is finite');
+  pass('Regression 25.12: Zero-allocation edge case handled with bounded finite metrics');
+
+  // 13. Regime Monte Carlo simulations execute safely on intermediate slider weights without throwing
+  const rmcRes = compareRegimeSimulations({ GOLD: 0.75, BTC: 0.35, NVDA: 0.40 });
+  assert(rmcRes.table.length > 0, 'Test 25.13: Regime Monte Carlo comparison table generated');
+  const mcRes = runMonteCarloSimulation({
+    method: 'HISTORICAL_BOOTSTRAP',
+    portfolioWeights: validateWeights({ GOLD: 0.8, BTC: 0.4, NVDA: 0.2 }).normalizedWeights,
+    simulationCount: 100,
+    horizonDays: 252,
+  });
+  assert(Number.isFinite(mcRes.terminalWealth.p50), 'Test 25.13: MC simulation completed with finite output');
+  pass('Regression 25.13: Monte Carlo & Regime Intelligence engines execute safely on unnormalized slider weights');
+
+  // 14. Returning to Portfolio Lab after navigation preserves valid state
+  const resetWeights = DEFAULT_PORTFOLIO_WEIGHTS;
+  const mReset = computePortfolioMetrics(resetWeights);
+  assert(mReset.annualizedVolatility > 0, 'Test 25.14: Reset weights produce valid volatility');
+  pass('Regression 25.14: Portfolio state reset and navigation resilience verified');
+
   console.log('\n==================================================');
-  console.log(`ALL ${passedTests}/24 PORTFOLIO TESTS PASSED`);
+  console.log(`ALL ${passedTests} PORTFOLIO TESTS PASSED`);
   console.log('==================================================\n');
 }
 

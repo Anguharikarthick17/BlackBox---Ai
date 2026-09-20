@@ -52,8 +52,9 @@ export function RiskContributionView({
       {/* Comparison Bars: Capital Weight vs Risk Contribution */}
       <div className="space-y-4 mb-6">
         {assets.map(asset => {
-          const capPct = (weights[asset] || 0) * 100;
-          const riskPct = (percentageRisk[asset] || 0) * 100;
+          const capPct = Math.max(0, (weights[asset] || 0) * 100);
+          const rawRisk = (percentageRisk?.[asset] ?? 0) * 100;
+          const riskPct = Math.abs(rawRisk) < 0.001 ? 0 : Math.max(0, rawRisk);
           const isRiskAmplified = riskPct > capPct + 5;
 
           return (
