@@ -4,6 +4,7 @@ import { OrbitControls, Float, Line, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { PRICE_DATA, Asset } from '../../core/data';
 import { computeMetrics } from '../../core/metrics';
+import { WebGLErrorBoundary } from '../common/WebGLErrorBoundary';
 
 export type CoreNodeId = Asset | 'MARKET' | 'STRATEGY' | 'RISK' | 'REGIME' | 'EVIDENCE' | 'CORE';
 
@@ -446,40 +447,42 @@ export function BlackboxCore3D({
     if (onSelectNode) onSelectNode(id);
   };
 
-  if (hasWebGLError) {
-    return (
-      <div
-        className={`w-full flex flex-col items-center justify-center p-8 bg-cream border border-border rounded-xl relative ${className}`}
-        style={{ minHeight: typeof height === 'number' ? height : 480 }}
-      >
-        <div className="max-w-md text-center">
-          <div className="w-12 h-12 mx-auto rounded-full bg-crimson flex items-center justify-center text-cream font-bold text-xl mb-3">
-            BX
-          </div>
-          <h3 className="font-display font-bold uppercase text-2xl text-graphite mb-1">
-            BLACKBOX 3D CORE
-          </h3>
-          <p className="text-xs text-taupe font-mono mb-4">
-            Institutional topological research graph connecting assets, strategies, and empirical risk models.
-          </p>
-          <div className="flex flex-wrap gap-2 justify-center">
-            {Object.values(NODES).map((n) => (
-              <button
-                key={n.id}
-                onClick={() => handleSelect(n.id)}
-                className={`px-3 py-1 text-xs font-mono rounded border transition-all ${
-                  activeId === n.id
-                    ? 'bg-crimson text-cream border-crimson'
-                    : 'bg-white text-graphite border-border hover:border-graphite'
-                }`}
-              >
-                {n.label}
-              </button>
-            ))}
-          </div>
+  const fallback2D = (
+    <div
+      className={`w-full flex flex-col items-center justify-center p-8 bg-cream border border-border rounded-xl relative ${className}`}
+      style={{ minHeight: typeof height === 'number' ? height : 480 }}
+    >
+      <div className="max-w-md text-center">
+        <div className="w-12 h-12 mx-auto rounded-full bg-crimson flex items-center justify-center text-cream font-bold text-xl mb-3">
+          BX
+        </div>
+        <h3 className="font-display font-bold uppercase text-2xl text-graphite mb-1">
+          BLACKBOX 3D CORE
+        </h3>
+        <p className="text-xs text-taupe font-mono mb-4">
+          Institutional topological research graph connecting assets, strategies, and empirical risk models.
+        </p>
+        <div className="flex flex-wrap gap-2 justify-center">
+          {Object.values(NODES).map((n) => (
+            <button
+              key={n.id}
+              onClick={() => handleSelect(n.id)}
+              className={`px-3 py-1 text-xs font-mono rounded border transition-all cursor-pointer ${
+                activeId === n.id
+                  ? 'bg-crimson text-cream border-crimson shadow-xs'
+                  : 'bg-white text-graphite border-border hover:border-graphite'
+              }`}
+            >
+              {n.label}
+            </button>
+          ))}
         </div>
       </div>
-    );
+    </div>
+  );
+
+  if (hasWebGLError) {
+    return fallback2D;
   }
 
   return (
@@ -490,13 +493,17 @@ export function BlackboxCore3D({
         if (activeId) setActiveId(null);
       }}
     >
-      <Canvas
-        camera={{ position: [0, 0, 10.8], fov: 39 }}
-        dpr={[1, 2]}
-        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+      <WebGLErrorBoundary
+        fallback={fallback2D}
         onError={() => setHasWebGLError(true)}
-        style={{ width: '100%', height: '100%', background: 'transparent' }}
       >
+        <Canvas
+          camera={{ position: [0, 0, 10.8], fov: 39 }}
+          dpr={[1, 2]}
+          gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+          onError={() => setHasWebGLError(true)}
+          style={{ width: '100%', height: '100%', background: 'transparent' }}
+        >
         <Suspense fallback={null}>
           <ambientLight intensity={0.85} />
           <directionalLight position={[6, 8, 6]} intensity={1.2} color="#FCF0D6" />
@@ -616,6 +623,7 @@ export function BlackboxCore3D({
           />
         </Suspense>
       </Canvas>
+      </WebGLErrorBoundary>
 
       {/* Contextual Focus Panel (Appears smoothly ONLY when a node is clicked) */}
       {activeNode && (
@@ -661,6 +669,15 @@ export function BlackboxCore3D({
                 <span className="text-[10px] font-bold text-crimson">{activeNode.metrics.maxDrawdown}</span>
               </div>
             </div>
+          )}
+
+          {onSelectNode && (
+            <button
+              onClick={() => onSelectNode(activeNode.id)}
+              className="w-full mt-2.5 py-1.5 px-2 bg-graphite text-white text-[10px] font-mono font-bold uppercase rounded hover:bg-crimson transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+            >
+              <span>EXPLORE {activeNode.label} IN WORKSPACE →</span>
+            </button>
           )}
         </div>
       )}

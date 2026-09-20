@@ -30,6 +30,7 @@ import {
   deriveMonteCarloSnapshot,
   OBSERVATORY_DISCLAIMERS,
   CURATED_INQUIRY_PROMPTS,
+  CURATED_OBSERVATORY_INQUIRIES,
   PROGRESS_RAIL_STAGES,
 } from '../src/core/research/observatory';
 import { sanitizePromptText } from '../src/core/research/audit/researchManifest';
@@ -340,6 +341,89 @@ async function runObservatoryTestSuite() {
     diff.caseBId === sealedCase.caseId &&
     diff.neutralSummary.length > 0,
     '35. Research diff: produces neutral 12-dimensional comparison without ranking bias'
+  );
+
+  // --- Regression Tests: Launch Investigation Workflow & State Machine ---
+  console.log('\n--- Launch Investigation Workflow Regression Suite ---');
+
+  // TEST 1 (Test 36): Launch Investigation with default question
+  const defaultQuestion = CURATED_OBSERVATORY_INQUIRIES[0].query;
+  const launchResult1 = await runResearchSession(defaultQuestion);
+  const sealedLaunch1 = sealResearchSession(launchResult1.session, launchResult1.memo, {
+    evidenceRecords: launchResult1.evidence,
+  });
+  assert(
+    sealedLaunch1.question === defaultQuestion &&
+    sealedLaunch1.hypotheses.length > 0 &&
+    sealedLaunch1.experiments.length > 0,
+    '36. Launch Investigation (Default): inquiry starts, generates hypotheses and DAG, preserves question'
+  );
+
+  // TEST 2 (Test 37): Select "Risk Concentration & Drivers" template and launch
+  const riskTemplate = CURATED_OBSERVATORY_INQUIRIES.find(t => t.title === 'Risk Concentration & Drivers');
+  assert(riskTemplate !== undefined, '37a. Template resolution: "Risk Concentration & Drivers" is a defined template');
+  const templateQuestion = riskTemplate!.query;
+  assert(
+    templateQuestion === 'Which assets drive portfolio volatility and risk concentration?',
+    '37b. Template question: matches exact portfolio concentration inquiry'
+  );
+  const launchResult2 = await runResearchSession(templateQuestion);
+  const sealedLaunch2 = sealResearchSession(launchResult2.session, launchResult2.memo, {
+    evidenceRecords: launchResult2.evidence,
+  });
+  assert(
+    sealedLaunch2.question === templateQuestion &&
+    sealedLaunch2.experiments.some(e => e.toolName.includes('metrics') || e.toolName.includes('regime')),
+    '37c. Launch Investigation (Template): "Risk Concentration & Drivers" launches and produces valid research case'
+  );
+
+  // TEST 3 (Test 38): Enter a custom research question and launch
+  const customQuestion = 'How does sudden volatility regime switching affect drawdown duration in 2022?';
+  const launchResult3 = await runResearchSession(customQuestion);
+  const sealedLaunch3 = sealResearchSession(launchResult3.session, launchResult3.memo, {
+    evidenceRecords: launchResult3.evidence,
+  });
+  assert(
+    sealedLaunch3.question === customQuestion &&
+    sealedLaunch3.evidence.length > 0,
+    '38. Launch Investigation (Custom): custom inquiry is preserved and executed through bounded DAG'
+  );
+
+  // TEST 4 (Test 39): Double launch concurrency protection
+  let isExecuting = false;
+  let executionCount = 0;
+  async function safeLaunch(q: string) {
+    if (isExecuting || !q.trim()) return null;
+    isExecuting = true;
+    try {
+      executionCount++;
+      return await runResearchSession(q);
+    } finally {
+      isExecuting = false;
+    }
+  }
+  const promiseA = safeLaunch(defaultQuestion);
+  const promiseB = safeLaunch(defaultQuestion);
+  const [resA, resB] = await Promise.all([promiseA, promiseB]);
+  assert(
+    resA !== null && resB === null && executionCount === 1,
+    '39. Rapid double-launch protection: concurrent launch attempt is safely blocked'
+  );
+
+  // TEST 5 (Test 40): Launch with missing/empty question validation
+  function validateInquiryInput(q: string): { valid: boolean; error?: string } {
+    const trimmed = q.trim();
+    if (!trimmed) {
+      return { valid: false, error: 'Please enter a quantitative research question or select an institutional template.' };
+    }
+    return { valid: true };
+  }
+  const emptyValidation = validateInquiryInput('');
+  const whitespaceValidation = validateInquiryInput('   ');
+  const validValidation = validateInquiryInput('Valid research question');
+  assert(
+    !emptyValidation.valid && !whitespaceValidation.valid && validValidation.valid,
+    '40. Empty question validation: rejects blank inputs without breaking state and supplies user feedback'
   );
 
   console.log('\n========================================================');

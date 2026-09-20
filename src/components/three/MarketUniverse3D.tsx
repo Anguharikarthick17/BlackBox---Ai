@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { PRICE_DATA, Asset, ASSET_COLORS } from '../../core/data';
 import { computeMetrics } from '../../core/metrics';
 import { computeCorrelationMatrix } from '../../core/correlations';
+import { WebGLErrorBoundary } from '../common/WebGLErrorBoundary';
 
 const goldMetrics = computeMetrics(PRICE_DATA.GOLD);
 const btcMetrics = computeMetrics(PRICE_DATA.BTC);
@@ -164,14 +165,43 @@ export function MarketUniverse3D({ className = '' }: { className?: string }) {
 
   const activeSpec = ASSET_SPECS[hoveredAsset || selectedAsset];
 
+  const fallback2D = (
+    <div className="w-full h-full flex flex-col items-center justify-center p-8 bg-cream border border-border rounded-xl">
+      <div className="text-center max-w-sm space-y-3">
+        <div className="text-xs font-mono font-bold uppercase tracking-wider text-crimson">
+          SYNCHRONIZED ASSET GEOMETRY
+        </div>
+        <p className="text-xs text-taupe font-mono">
+          Gold (XAU) · Bitcoin (BTC) · NVIDIA (NVDA)
+        </p>
+        <div className="flex gap-2 justify-center pt-2">
+          {(['GOLD', 'BTC', 'NVDA'] as Asset[]).map((a) => (
+            <button
+              key={a}
+              onClick={() => setSelectedAsset(a)}
+              className={`px-3 py-1.5 rounded font-mono text-xs border transition-all cursor-pointer ${
+                selectedAsset === a
+                  ? 'bg-graphite text-white border-graphite shadow-xs'
+                  : 'bg-white text-graphite border-border hover:border-graphite'
+              }`}
+            >
+              {ASSET_SPECS[a].name}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className={`w-full relative select-none h-[500px] overflow-hidden ${className}`}>
-      <Canvas
-        camera={{ position: [0, 4.5, 9], fov: 45 }}
-        dpr={[1, 2]}
-        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-        style={{ background: 'transparent' }}
-      >
+      <WebGLErrorBoundary fallback={fallback2D}>
+        <Canvas
+          camera={{ position: [0, 4.5, 9], fov: 45 }}
+          dpr={[1, 2]}
+          gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+          style={{ background: 'transparent' }}
+        >
         <Suspense fallback={null}>
           <ambientLight intensity={0.7} />
           <directionalLight position={[6, 8, 5]} intensity={1.1} color="#FCF0D6" />
@@ -215,6 +245,7 @@ export function MarketUniverse3D({ className = '' }: { className?: string }) {
           />
         </Suspense>
       </Canvas>
+      </WebGLErrorBoundary>
 
       {/* HUD Telemetry Overlay */}
       <div className="absolute top-4 left-4 max-w-sm bg-white/95 backdrop-blur-md border border-border rounded-xl p-4 shadow-elevated">

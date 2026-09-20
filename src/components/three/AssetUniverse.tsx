@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Sphere, MeshDistortMaterial, Float, Line, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { ASSET_COLORS, Asset } from '../../core/data';
+import { WebGLErrorBoundary } from '../common/WebGLErrorBoundary';
 
 interface AssetNodeProps {
   position: [number, number, number];
@@ -144,13 +145,35 @@ export function AssetUniverse({
     NVDA: 0.85,
   };
 
+  const fallback2D = (
+    <div className="w-full h-full flex items-center justify-center p-4 bg-ivory-100 rounded border border-border">
+      <div className="flex gap-3 justify-center items-center">
+        {(['GOLD', 'BTC', 'NVDA'] as Asset[]).map((asset) => (
+          <button
+            key={asset}
+            onClick={() => onAssetClick?.(asset)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-mono border transition-all cursor-pointer ${
+              selectedAsset === asset
+                ? 'bg-graphite text-white border-graphite shadow-xs'
+                : 'bg-white text-graphite border-border hover:border-graphite'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ASSET_COLORS[asset] }} />
+            <span>{asset === 'GOLD' ? 'XAU' : asset}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className={`w-full ${compact ? 'h-48' : 'h-full'} relative`} style={{ minHeight: compact ? 192 : 400 }}>
-      <Canvas
-        camera={{ position: [0, 0, 8], fov: 45 }}
-        gl={{ antialias: true, alpha: true }}
-        style={{ background: 'transparent' }}
-      >
+      <WebGLErrorBoundary fallback={fallback2D}>
+        <Canvas
+          camera={{ position: [0, 0, 8], fov: 45 }}
+          gl={{ antialias: true, alpha: true }}
+          style={{ background: 'transparent' }}
+        >
         <Suspense fallback={null}>
           <ambientLight intensity={0.6} />
           <directionalLight position={[5, 5, 5]} intensity={0.8} color="#FFF8EF" />
@@ -205,6 +228,7 @@ export function AssetUniverse({
           />
         </Suspense>
       </Canvas>
+      </WebGLErrorBoundary>
 
       {/* Fallback label if WebGL fails */}
       <noscript>

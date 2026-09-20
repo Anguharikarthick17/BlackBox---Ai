@@ -14,18 +14,31 @@ export const ResearchQuestion: React.FC<ResearchQuestionProps> = ({
   activeQuestion = '',
 }) => {
   const [inputQuery, setInputQuery] = useState(activeQuestion || CURATED_OBSERVATORY_INQUIRIES[0].query);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputQuery.trim() || isRunning) return;
-    onRunQuestion(inputQuery.trim());
+  // Synchronize input query when active question updates
+  React.useEffect(() => {
+    if (activeQuestion) {
+      setInputQuery(activeQuestion);
+    }
+  }, [activeQuestion]);
+
+  const handleLaunch = (e?: React.SyntheticEvent) => {
+    if (e) e.preventDefault();
+    const query = inputQuery.trim();
+    if (!query) {
+      setValidationError('Please enter a quantitative research question or select an institutional template.');
+      return;
+    }
+    if (isRunning) return;
+
+    setValidationError(null);
+    onRunQuestion(query);
   };
 
   const handleSelectCurated = (query: string) => {
     setInputQuery(query);
-    if (!isRunning) {
-      onRunQuestion(query);
-    }
+    setValidationError(null);
   };
 
   return (
@@ -48,14 +61,17 @@ export const ResearchQuestion: React.FC<ResearchQuestionProps> = ({
         <strong className="text-graphite font-semibold">Institutional Research Charter:</strong> {OBSERVATORY_DISCLAIMERS.EPISTEMIC_ROLE}
       </div>
 
-      <form onSubmit={handleSubmit} className="mb-6">
+      <form onSubmit={handleLaunch} className="mb-6">
         <div className="flex flex-col sm:flex-row items-stretch gap-2">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-graphite-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={inputQuery}
-              onChange={e => setInputQuery(e.target.value)}
+              onChange={e => {
+                setInputQuery(e.target.value);
+                if (validationError) setValidationError(null);
+              }}
               disabled={isRunning}
               placeholder="e.g. Why did BTC EMA Trend underperform Buy & Hold during 2020-2023?"
               className="w-full pl-10 pr-4 py-3 bg-white border border-border rounded-md text-sm text-graphite placeholder:text-graphite-300 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition font-normal"
@@ -64,7 +80,9 @@ export const ResearchQuestion: React.FC<ResearchQuestionProps> = ({
 
           <button
             type="submit"
+            onClick={handleLaunch}
             disabled={isRunning || !inputQuery.trim()}
+            data-testid="launch-investigation-btn"
             className="btn-accent px-6 py-3 text-sm flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50"
           >
             {isRunning ? (
@@ -80,6 +98,13 @@ export const ResearchQuestion: React.FC<ResearchQuestionProps> = ({
             )}
           </button>
         </div>
+
+        {validationError && (
+          <p className="text-xs text-rose-600 font-mono mt-2 flex items-center gap-1">
+            <HelpCircle className="w-3.5 h-3.5 text-rose-500" />
+            <span>{validationError}</span>
+          </p>
+        )}
       </form>
 
       {/* Curated Suggested Questions */}

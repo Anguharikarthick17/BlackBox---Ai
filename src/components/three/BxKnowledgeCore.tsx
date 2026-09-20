@@ -3,6 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { Float, Line, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { ASSET_COLORS, Asset } from '../../core/data';
+import { WebGLErrorBoundary } from '../common/WebGLErrorBoundary';
 
 export type NodeId = Asset | 'MARKET' | 'STRATEGY' | 'RISK' | 'REGIME' | 'EVIDENCE';
 
@@ -181,51 +182,53 @@ export function BxKnowledgeCore({
 
   const selectedNodeData = useMemo(() => NODES.find((n) => n.id === activeNode), [activeNode]);
 
-  if (hasWebGlError) {
-    // Elegant 2D SVG fallback
-    return (
-      <div
-        className={`w-full flex flex-col items-center justify-center p-8 bg-ivory-100 rounded-lg border border-border relative ${className}`}
-        style={{ minHeight: height }}
-      >
-        <div className="text-center max-w-md">
-          <div className="w-12 h-12 mx-auto rounded-full bg-accent/10 flex items-center justify-center text-accent mb-3 font-display font-bold text-xl">
-            BX
-          </div>
-          <h4 className="font-display uppercase text-lg font-bold text-graphite mb-1">
-            BX Knowledge Core
-          </h4>
-          <p className="text-xs text-graphite-400 font-sans mb-4">
-            Deterministic multi-asset quantitative graph: Gold · Bitcoin · NVIDIA interconnected with 4 strategy engines and empirical risk models.
-          </p>
-          <div className="flex flex-wrap gap-2 justify-center">
-            {NODES.map((n) => (
-              <button
-                key={n.id}
-                onClick={() => handleNodeClick(n.id)}
-                className={`px-2.5 py-1 text-xs font-mono rounded border ${
-                  activeNode === n.id
-                    ? 'bg-accent text-white border-accent'
-                    : 'bg-white text-graphite border-border'
-                }`}
-              >
-                {n.label}
-              </button>
-            ))}
-          </div>
+  const fallback2D = (
+    <div
+      className={`w-full flex flex-col items-center justify-center p-8 bg-ivory-100 rounded-lg border border-border relative ${className}`}
+      style={{ minHeight: height }}
+    >
+      <div className="text-center max-w-md">
+        <div className="w-12 h-12 mx-auto rounded-full bg-accent/10 flex items-center justify-center text-accent mb-3 font-display font-bold text-xl">
+          BX
+        </div>
+        <h4 className="font-display uppercase text-lg font-bold text-graphite mb-1">
+          BX Knowledge Core
+        </h4>
+        <p className="text-xs text-graphite-400 font-sans mb-4">
+          Deterministic multi-asset quantitative graph: Gold · Bitcoin · NVIDIA interconnected with 4 strategy engines and empirical risk models.
+        </p>
+        <div className="flex flex-wrap gap-2 justify-center">
+          {NODES.map((n) => (
+            <button
+              key={n.id}
+              onClick={() => handleNodeClick(n.id)}
+              className={`px-2.5 py-1 text-xs font-mono rounded border cursor-pointer ${
+                activeNode === n.id
+                  ? 'bg-accent text-white border-accent shadow-xs'
+                  : 'bg-white text-graphite border-border'
+              }`}
+            >
+              {n.label}
+            </button>
+          ))}
         </div>
       </div>
-    );
+    </div>
+  );
+
+  if (hasWebGlError) {
+    return fallback2D;
   }
 
   return (
     <div className={`w-full relative select-none ${className}`} style={{ height, minHeight: height }}>
-      <Canvas
-        camera={{ position: [0, 0, 9.5], fov: 45 }}
-        gl={{ antialias: true, alpha: true }}
-        onError={() => setHasWebGlError(true)}
-        style={{ background: 'transparent' }}
-      >
+      <WebGLErrorBoundary fallback={fallback2D} onError={() => setHasWebGlError(true)}>
+        <Canvas
+          camera={{ position: [0, 0, 9.5], fov: 45 }}
+          gl={{ antialias: true, alpha: true }}
+          onError={() => setHasWebGlError(true)}
+          style={{ background: 'transparent' }}
+        >
         <Suspense fallback={null}>
           <ambientLight intensity={0.7} />
           <directionalLight position={[6, 6, 6]} intensity={0.9} color="#FFF5EB" />
@@ -257,6 +260,7 @@ export function BxKnowledgeCore({
           ))}
         </Suspense>
       </Canvas>
+      </WebGLErrorBoundary>
 
       {/* Floating Active Node Telemetry Card */}
       {selectedNodeData && (

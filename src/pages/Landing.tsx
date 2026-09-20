@@ -23,8 +23,9 @@ import { StressSpatialScene } from '../components/three/StressSpatialScene';
 import { BxLogo } from '../components/bx/BxLogo';
 import { BxDataBadge } from '../components/bx/BxDataBadge';
 import { StressScenarioId } from '../core/stressTesting';
-import { PRICE_DATA } from '../core/data';
+import { PRICE_DATA, Asset } from '../core/data';
 import { computeMetrics } from '../core/metrics';
+import { useResearchStore } from '../store/researchStore';
 import { LiveDemoModal } from '../components/demo/LiveDemoModal';
 
 interface LandingProps {
@@ -236,15 +237,25 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
                 height="100%"
                 onSelectNode={(id) => {
                   if (id === 'GOLD' || id === 'BTC' || id === 'NVDA') {
-                    onEnterWorkspace('market');
+                    useResearchStore.getState().setAsset(id as Asset);
+                    // Safe asynchronous navigation allows R3F pointer events to finish cleanly
+                    setTimeout(() => {
+                      if (window.location.hash) {
+                        try {
+                          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+                        } catch (_) {}
+                      }
+                      window.scrollTo({ top: 0, behavior: 'instant' });
+                      onEnterWorkspace('market');
+                    }, 60);
                   } else if (id === 'STRATEGY') {
-                    onEnterWorkspace('strategy');
+                    setTimeout(() => onEnterWorkspace('strategy'), 60);
                   } else if (id === 'RISK') {
-                    onEnterWorkspace('stress');
+                    setTimeout(() => onEnterWorkspace('stress'), 60);
                   } else if (id === 'REGIME') {
-                    onEnterWorkspace('regimes');
+                    setTimeout(() => onEnterWorkspace('regimes'), 60);
                   } else if (id === 'EVIDENCE') {
-                    onEnterWorkspace('observatory');
+                    setTimeout(() => onEnterWorkspace('observatory'), 60);
                   }
                 }}
               />

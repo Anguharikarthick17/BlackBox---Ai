@@ -42,6 +42,7 @@ import { useResearchStore } from '../store/researchStore';
 import { PRICE_DATA, ASSET_COLORS, Asset } from '../core/data';
 import { computeMetrics } from '../core/metrics';
 import { BxLogo, BxDataBadge, BxStatus } from '../components/bx';
+import { ErrorBoundary } from '../components/common/ErrorBoundary';
 
 export const NAV_ITEMS = [
   { id: 'observatory', label: 'Observatory', icon: Eye, group: 'research' },
@@ -382,7 +383,9 @@ export function Workspace({ initialSection = 'observatory', onBack }: WorkspaceP
           {/* Active Section Content */}
           <AnimatePresence mode="wait">
             <motion.div key={activeSection} {...PAGE_TRANSITION}>
-              <SectionContent section={activeSection as NavId} />
+              <ErrorBoundary fallbackTitle={`Section [${activeSection.toUpperCase()}] Intercepted`}>
+                <SectionContent section={activeSection as NavId} />
+              </ErrorBoundary>
             </motion.div>
           </AnimatePresence>
         </div>

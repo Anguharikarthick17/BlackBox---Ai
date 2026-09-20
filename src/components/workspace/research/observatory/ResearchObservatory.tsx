@@ -26,6 +26,7 @@ import {
   deriveRegimeSnapshot,
   deriveStressSnapshot,
   deriveMonteCarloSnapshot,
+  CURATED_OBSERVATORY_INQUIRIES,
 } from '../../../../core/research/observatory';
 import { ObservatoryHeader } from './ObservatoryHeader';
 import { ResearchQuestion } from './ResearchQuestion';
@@ -100,16 +101,18 @@ export const ResearchObservatory: React.FC = () => {
       setResearchCase(latest);
       setAuditEvents(globalAuditTimeline.getEvents(latest.caseId));
     } else {
-      handleLaunchInquiry('Why did BTC EMA Trend underperform Buy & Hold during 2020-2023?');
+      handleLaunchInquiry('Why did BTC EMA Trend underperform Buy & Hold during 2020-2023?', { autoScroll: false });
     }
   }, []);
 
-  const handleLaunchInquiry = async (queryText: string) => {
-    if (!queryText.trim() || isRunning) return;
+  const handleLaunchInquiry = async (queryText: string, options?: { autoScroll?: boolean }) => {
+    const text = queryText.trim();
+    if (!text || isRunning) return;
+
     setIsRunning(true);
 
     try {
-      const result = await runResearchSession(queryText);
+      const result = await runResearchSession(text);
       setCurrentResult(result);
 
       const sealed = sealResearchSession(result.session, result.memo, {
@@ -118,7 +121,19 @@ export const ResearchObservatory: React.FC = () => {
       globalResearchCaseStore.saveCase(sealed);
       setResearchCase(sealed);
       setAuditEvents(globalAuditTimeline.getEvents(sealed.caseId));
-      setActiveStage('INSPECT');
+
+      // Transition to next Research Workspace section/stage: INVESTIGATE
+      setActiveStage('INVESTIGATE');
+
+      const shouldScroll = options?.autoScroll ?? true;
+      if (shouldScroll && typeof window !== 'undefined') {
+        setTimeout(() => {
+          const target = document.getElementById('sec-hypothesis') || document.getElementById('sec-plan');
+          if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 60);
+      }
     } catch (err) {
       console.error('Observatory research execution failed:', err);
     } finally {
