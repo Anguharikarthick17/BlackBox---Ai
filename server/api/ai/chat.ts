@@ -7,7 +7,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { FeatherlessProvider } from '../../../src/services/ai/FeatherlessProvider';
+import { FeatherlessProvider, sanitizeAssistantContent } from '../../../src/services/ai/FeatherlessProvider';
 import { TavilyProvider } from '../../../src/services/web/TavilyProvider';
 import {
   ChatMessage,
@@ -259,7 +259,7 @@ export async function handleAssistantChatRequest(
       { role: 'system', content: `${SYSTEM_PROMPT}\n\n${modeSystemDirective}` },
       ...rawMessages.slice(-MODEL_CONFIG.maxContextMessages).map((m: any) => ({
         role: m.role as any,
-        content: m.content,
+        content: m.role === 'assistant' ? sanitizeAssistantContent(m.content) : m.content,
       })),
     ];
 
@@ -287,7 +287,7 @@ export async function handleAssistantChatRequest(
         message: {
           id: `msg-${Date.now()}`,
           role: 'assistant',
-          content: initialResponse.content,
+          content: sanitizeAssistantContent(initialResponse.content),
           timestamp: new Date(),
           mode: routing.mode,
           toolActivity: [], // Zero tools shown for pure conceptual response
@@ -303,7 +303,7 @@ export async function handleAssistantChatRequest(
     const toolCallTurnMessages: ChatMessage[] = [
       {
         role: 'assistant',
-        content: initialResponse.content || '',
+        content: sanitizeAssistantContent(initialResponse.content || ''),
         tool_calls: toolCallsToExecute,
       },
     ];
@@ -428,7 +428,7 @@ export async function handleAssistantChatRequest(
       message: {
         id: `msg-${Date.now()}`,
         role: 'assistant',
-        content: finalResponse.content,
+        content: sanitizeAssistantContent(finalResponse.content),
         timestamp: new Date(),
         mode: routing.mode,
         toolActivity,

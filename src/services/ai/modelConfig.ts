@@ -9,7 +9,22 @@ export const MODEL_CONFIG = {
   maxOutputTokens: 2048,
   maxToolCallsPerTurn: 2,
   maxContextMessages: 10,
-  temperature: 0.15, // Low temperature for factual precision and grounded citations
+  temperature: 0.3, // Calibrated to prevent repetition collapse while ensuring rigorous quantitative precision
+  frequencyPenalty: 0.3,
+  presencePenalty: 0.1,
+  stopSequences: [
+    '<|im_end|>',
+    '<|im_start|>',
+    '<|endoftext|>',
+    '\nuser\n',
+    '\nUser:\n',
+    '\nUser: ',
+    '\nuser:\n',
+    '\nuser: ',
+    '\nassistant\n',
+    '\nAssistant:\n',
+    '\nAssistant: ',
+  ],
   requestTimeoutMs: 15000,
 };
 

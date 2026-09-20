@@ -17,6 +17,7 @@ import {
 } from '../src/core/aiTools';
 import { TavilyProvider } from '../src/services/web/TavilyProvider';
 import { handleChatRequest } from '../server/api/ai/chat';
+import { sanitizeAssistantContent } from '../src/services/ai/FeatherlessProvider';
 
 async function runAssistantTests() {
   console.log('=== BLACKBOX X: PHASE 3.5 ASSISTANT VERIFICATION SUITE ===\n');
@@ -176,6 +177,84 @@ async function runAssistantTests() {
   assert(
     hybridChatResponse.message.toolActivity?.some(t => t.toolName.includes('web') || t.toolName.includes('search')),
     'Tool activity includes web search execution'
+  );
+
+  // TEST 15: Sanitization of Injected Multi-turn User Transcripts
+  const rawWithInjectedUser = `Sharpe ratio is the excess return of an investment above the risk-free rate per unit of volatility.
+
+user
+Can you provide a definition of Sharpe ratio as it is used in BLACKBOX X?
+
+"user
+Can you provide a definition of Sharpe ratio as it is used in BLACKBOX X?`;
+
+  const sanitizedUserTurns = sanitizeAssistantContent(rawWithInjectedUser);
+  assert(
+    !sanitizedUserTurns.includes('user\n') && !sanitizedUserTurns.includes('"user') && !sanitizedUserTurns.includes('Can you provide'),
+    'Sanitizer cuts off hallucinated user transcript turns and repetitive prompts'
+  );
+  assert(
+    sanitizedUserTurns.includes('Sharpe ratio is the excess return'),
+    'Sanitizer preserves legitimate assistant content'
+  );
+
+  // TEST 16: Sanitization of Cyclic Degenerate Token Repetitions ("ummin")
+  const rawWithUmmin = `The annualized volatility for Bitcoin is 65.4%.
+
+ummin
+ummin
+ummin
+ummin`;
+
+  const sanitizedUmmin = sanitizeAssistantContent(rawWithUmmin);
+  assert(
+    !sanitizedUmmin.includes('ummin'),
+    'Sanitizer completely eliminates degenerate cyclic token loops (ummin)'
+  );
+  assert(
+    sanitizedUmmin.includes('annualized volatility for Bitcoin is 65.4%'),
+    'Sanitizer preserves legitimate text preceding token loop'
+  );
+
+  // TEST 17: Sanitization of Multi-line Repeating Block Cycles
+  const rawWithBlockCycles = `Section A
+Section B
+Section C
+Section B
+Section C
+Section B
+Section C`;
+
+  const sanitizedBlocks = sanitizeAssistantContent(rawWithBlockCycles);
+  assert(
+    sanitizedBlocks.split('Section B').length <= 2,
+    'Sanitizer breaks out of repeating multi-line block cycles'
+  );
+
+  // TEST 18: Special Model Token Stripping
+  const rawWithSpecialTokens = `<|im_start|>assistant\nThe strategy has an Sharpe ratio of 1.45.<|im_end|>`;
+  const sanitizedSpecial = sanitizeAssistantContent(rawWithSpecialTokens);
+  assert(
+    !sanitizedSpecial.includes('<|im_start|>') && !sanitizedSpecial.includes('<|im_end|>') && !sanitizedSpecial.startsWith('assistant'),
+    'Sanitizer strips model control tokens and assistant role prefixes'
+  );
+  assert(
+    sanitizedSpecial.includes('The strategy has an Sharpe ratio of 1.45.'),
+    'Sanitizer preserves message body'
+  );
+
+  // TEST 19: Full Chat Request Handler with Contaminated History Input
+  const contaminatedHistoryResponse = await handleChatRequest({
+    messages: [
+      { role: 'user', content: 'What is Sharpe ratio?' },
+      { role: 'assistant', content: 'Sharpe ratio is return/risk.\n\nuser\nWhat is Sharpe ratio?\n\nuser\nWhat is Sharpe ratio?' },
+      { role: 'user', content: 'Explain in one sentence.' }
+    ],
+    offlineDemo: true
+  });
+  assert(
+    !contaminatedHistoryResponse.message.content.includes('user\n') && !contaminatedHistoryResponse.message.content.includes('"user'),
+    'Chat handler sanitizes context history and returns uncontaminated assistant response'
   );
 
   console.log('\n==================================================');

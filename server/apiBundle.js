@@ -645,8 +645,23 @@ var MODEL_CONFIG = {
   maxOutputTokens: 2048,
   maxToolCallsPerTurn: 2,
   maxContextMessages: 10,
-  temperature: 0.15,
-  // Low temperature for factual precision and grounded citations
+  temperature: 0.3,
+  // Calibrated to prevent repetition collapse while ensuring rigorous quantitative precision
+  frequencyPenalty: 0.3,
+  presencePenalty: 0.1,
+  stopSequences: [
+    "<|im_end|>",
+    "<|im_start|>",
+    "<|endoftext|>",
+    "\nuser\n",
+    "\nUser:\n",
+    "\nUser: ",
+    "\nuser:\n",
+    "\nuser: ",
+    "\nassistant\n",
+    "\nAssistant:\n",
+    "\nAssistant: "
+  ],
   requestTimeoutMs: 15e3
 };
 function getActiveFeatherlessModel() {
@@ -657,6 +672,64 @@ function getActiveFeatherlessModel() {
 }
 
 // src/services/ai/FeatherlessProvider.ts
+function sanitizeAssistantContent(raw) {
+  if (!raw || typeof raw !== "string") return "";
+  let text = raw;
+  text = text.replace(/<\|im_end\|>|<\|im_start\|>|<\|endoftext\|>/gi, "");
+  text = text.replace(/^(?:assistant|Assistant)\s*[:\n]\s*/, "");
+  const turnMatch = text.match(/(?:\n+|^)\s*["']*(?:user|User|human|Human|assistant|Assistant)["']*\s*[:\n]/i);
+  if (turnMatch && turnMatch.index !== void 0 && turnMatch.index > 0) {
+    text = text.slice(0, turnMatch.index);
+  } else if (turnMatch && turnMatch.index === 0) {
+    const nextAssistant = text.match(/\n+\s*["']*(?:assistant|Assistant)["']*\s*[:\n]\s*/i);
+    if (nextAssistant && nextAssistant.index !== void 0) {
+      text = text.slice(nextAssistant.index + nextAssistant[0].length);
+    }
+  }
+  const rawLines = text.split("\n");
+  const cleanedLines = [];
+  let prevNonEmpty = "";
+  let repeatCount = 0;
+  for (let i = 0; i < rawLines.length; i++) {
+    const trimmed = rawLines[i].trim();
+    if (!trimmed) {
+      cleanedLines.push(rawLines[i]);
+      continue;
+    }
+    if (trimmed.toLowerCase() === prevNonEmpty.toLowerCase() && trimmed.length > 1) {
+      repeatCount++;
+      if (repeatCount >= 2) {
+        while (cleanedLines.length > 0) {
+          const last = cleanedLines[cleanedLines.length - 1].trim().toLowerCase();
+          if (last === "" || last === prevNonEmpty.toLowerCase()) {
+            cleanedLines.pop();
+          } else {
+            break;
+          }
+        }
+        break;
+      }
+    } else {
+      repeatCount = 0;
+      prevNonEmpty = trimmed;
+    }
+    cleanedLines.push(rawLines[i]);
+  }
+  text = cleanedLines.join("\n");
+  const lines = text.split("\n");
+  for (let blockSize = 1; blockSize <= 5; blockSize++) {
+    for (let i = 0; i <= lines.length - blockSize * 2; i++) {
+      const b1 = lines.slice(i, i + blockSize).map((l) => l.trim()).filter(Boolean).join("\n");
+      const b2 = lines.slice(i + blockSize, i + blockSize * 2).map((l) => l.trim()).filter(Boolean).join("\n");
+      if (b1.length > 10 && b1 === b2) {
+        text = lines.slice(0, i + blockSize).join("\n");
+        break;
+      }
+    }
+  }
+  text = text.replace(/\b(\w+)(?:\s+\1){3,}\b/gi, "$1");
+  return text.trim();
+}
 var FeatherlessProvider = class {
   name = "Featherless LLM";
   apiKey;
@@ -695,7 +768,10 @@ var FeatherlessProvider = class {
       model,
       messages,
       temperature,
-      max_tokens: maxTokens
+      max_tokens: maxTokens,
+      frequency_penalty: MODEL_CONFIG.frequencyPenalty,
+      presence_penalty: MODEL_CONFIG.presencePenalty,
+      stop: MODEL_CONFIG.stopSequences
     };
     if (tools && tools.length > 0) {
       payload.tools = tools;
@@ -760,8 +836,10 @@ status: ${response.status}`);
           }
         }));
       }
+      const rawContent = choice.message.content || "";
+      const cleanContent = sanitizeAssistantContent(rawContent);
       return {
-        content: choice.message.content || "",
+        content: cleanContent,
         toolCalls,
         usage: data.usage ? {
           promptTokens: data.usage.prompt_tokens,
@@ -26546,7 +26624,7 @@ According to BLACKBOX X for **${asset}** utilizing **${strategy}** across the hi
 ${modeSystemDirective}` },
       ...rawMessages.slice(-MODEL_CONFIG.maxContextMessages).map((m) => ({
         role: m.role,
-        content: m.content
+        content: m.role === "assistant" ? sanitizeAssistantContent(m.content) : m.content
       }))
     ];
     const tools = getToolsForMode(routing.mode);
@@ -26564,7 +26642,7 @@ ${modeSystemDirective}` },
         message: {
           id: `msg-${Date.now()}`,
           role: "assistant",
-          content: initialResponse.content,
+          content: sanitizeAssistantContent(initialResponse.content),
           timestamp: /* @__PURE__ */ new Date(),
           mode: routing.mode,
           toolActivity: [],
@@ -26578,7 +26656,7 @@ ${modeSystemDirective}` },
     const toolCallTurnMessages = [
       {
         role: "assistant",
-        content: initialResponse.content || "",
+        content: sanitizeAssistantContent(initialResponse.content || ""),
         tool_calls: toolCallsToExecute
       }
     ];
@@ -26683,7 +26761,7 @@ ${modeSystemDirective}` },
       message: {
         id: `msg-${Date.now()}`,
         role: "assistant",
-        content: finalResponse.content,
+        content: sanitizeAssistantContent(finalResponse.content),
         timestamp: /* @__PURE__ */ new Date(),
         mode: routing.mode,
         toolActivity,

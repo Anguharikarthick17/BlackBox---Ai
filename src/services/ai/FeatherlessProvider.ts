@@ -9,6 +9,84 @@ import { AIProvider } from './AIProvider';
 import { ChatMessage, ToolDefinition, AIResponse, ToolCall } from './types';
 import { MODEL_CONFIG, getActiveFeatherlessModel } from './modelConfig';
 
+/**
+ * Hard Response Sanitization Boundary:
+ * Strips raw injected transcripts (e.g. \nuser\n, "user\n...), special model tokens,
+ * and breaks out of degenerate cyclic line, block, or token loops (e.g. ummin\nummin...).
+ */
+export function sanitizeAssistantContent(raw: string): string {
+  if (!raw || typeof raw !== 'string') return '';
+
+  let text = raw;
+
+  // 1. Strip special model tokens
+  text = text.replace(/<\|im_end\|>|<\|im_start\|>|<\|endoftext\|>/gi, '');
+  text = text.replace(/^(?:assistant|Assistant)\s*[:\n]\s*/, '');
+
+  // 2. Cut off injected / hallucinated turns (including quoted "user or \nuser)
+  const turnMatch = text.match(/(?:\n+|^)\s*["']*(?:user|User|human|Human|assistant|Assistant)["']*\s*[:\n]/i);
+  if (turnMatch && turnMatch.index !== undefined && turnMatch.index > 0) {
+    text = text.slice(0, turnMatch.index);
+  } else if (turnMatch && turnMatch.index === 0) {
+    const nextAssistant = text.match(/\n+\s*["']*(?:assistant|Assistant)["']*\s*[:\n]\s*/i);
+    if (nextAssistant && nextAssistant.index !== undefined) {
+      text = text.slice(nextAssistant.index + nextAssistant[0].length);
+    }
+  }
+
+  // 3. Detect repeating non-empty lines (ignoring blank lines between them)
+  const rawLines = text.split('\n');
+  const cleanedLines: string[] = [];
+  let prevNonEmpty = '';
+  let repeatCount = 0;
+
+  for (let i = 0; i < rawLines.length; i++) {
+    const trimmed = rawLines[i].trim();
+    if (!trimmed) {
+      cleanedLines.push(rawLines[i]);
+      continue;
+    }
+    if (trimmed.toLowerCase() === prevNonEmpty.toLowerCase() && trimmed.length > 1) {
+      repeatCount++;
+      if (repeatCount >= 2) {
+        while (cleanedLines.length > 0) {
+          const last = cleanedLines[cleanedLines.length - 1].trim().toLowerCase();
+          if (last === '' || last === prevNonEmpty.toLowerCase()) {
+            cleanedLines.pop();
+          } else {
+            break;
+          }
+        }
+        break;
+      }
+    } else {
+      repeatCount = 0;
+      prevNonEmpty = trimmed;
+    }
+    cleanedLines.push(rawLines[i]);
+  }
+
+  text = cleanedLines.join('\n');
+
+  // 4. Detect repeating multi-line cycles (e.g. 2-line blocks repeating)
+  const lines = text.split('\n');
+  for (let blockSize = 1; blockSize <= 5; blockSize++) {
+    for (let i = 0; i <= lines.length - (blockSize * 2); i++) {
+      const b1 = lines.slice(i, i + blockSize).map(l => l.trim()).filter(Boolean).join('\n');
+      const b2 = lines.slice(i + blockSize, i + blockSize * 2).map(l => l.trim()).filter(Boolean).join('\n');
+      if (b1.length > 10 && b1 === b2) {
+        text = lines.slice(0, i + blockSize).join('\n');
+        break;
+      }
+    }
+  }
+
+  // 5. Remove consecutive repeating in-line word loops
+  text = text.replace(/\b(\w+)(?:\s+\1){3,}\b/gi, '$1');
+
+  return text.trim();
+}
+
 export class FeatherlessProvider implements AIProvider {
   name = 'Featherless LLM';
   private apiKey: string | undefined;
@@ -63,6 +141,9 @@ export class FeatherlessProvider implements AIProvider {
       messages,
       temperature,
       max_tokens: maxTokens,
+      frequency_penalty: MODEL_CONFIG.frequencyPenalty,
+      presence_penalty: MODEL_CONFIG.presencePenalty,
+      stop: MODEL_CONFIG.stopSequences,
     };
 
     if (tools && tools.length > 0) {
@@ -143,8 +224,11 @@ export class FeatherlessProvider implements AIProvider {
         }));
       }
 
+      const rawContent = choice.message.content || '';
+      const cleanContent = sanitizeAssistantContent(rawContent);
+
       return {
-        content: choice.message.content || '',
+        content: cleanContent,
         toolCalls,
         usage: data.usage ? {
           promptTokens: data.usage.prompt_tokens,
